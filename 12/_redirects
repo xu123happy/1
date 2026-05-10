@@ -1,0 +1,28 @@
+# Netlify Redirects Configuration
+# 将旧的中文URL重定向到新的英文URL
+
+# 主页
+/               /index.html           200
+
+# 学校人数统计系统
+/school-statistics              /school-statistics.html
+/school-statistics.html         /school-statistics.html   200
+
+# 收入仪表板（使用中文文件名）
+/income-dashboard               /学校项目收入仪表板.html
+/income-dashboard.html          /学校项目收入仪表板.html    200
+/学校项目收入仪表板.html         /学校项目收入仪表板.html    200
+/学校项目收入仪表板              /学校项目收入仪表板.html    200
+
+# Excel格式诊断工具
+/excel-check                    /excel-format-checker.html
+/excel-check.html               /excel-format-checker.html 200
+
+# API测试工具
+/api-test                       /test-worker-api.html
+/api-test.html                  /test-worker-api.html     200
+/test-worker-api                /test-worker-api.html
+/test-worker-api.html           /test-worker-api.html    200
+
+# 所有未匹配的请求重定向到首页
+/*                /index.html           404
