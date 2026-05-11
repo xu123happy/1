@@ -7,8 +7,17 @@
     <script>
         // 设备检测：手机端自动跳转到移动版
         (function() {
-            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-            const currentPage = location.pathname.split('/').pop();
+            // 检测是否为移动设备（通过User Agent和屏幕宽度）
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+            
+            // 获取当前文件名
+            const pathname = location.pathname;
+            let currentPage = pathname.split('/').pop();
+            if (!currentPage) {
+                // 如果获取失败，尝试从href获取
+                currentPage = location.href.split('/').pop().split('?')[0];
+            }
+            
             // 如果已经是移动版页面，不跳转
             if (isMobile && !currentPage.includes('-mobile')) {
                 // 映射到对应的移动版页面
@@ -17,11 +26,9 @@
                     'school-statistics.html': 'school-statistics-mobile.html',
                     'school-income-dashboard.html': 'school-income-dashboard-mobile.html'
                 };
-                if (mobileMap[currentPage]) {
-                    location.href = mobileMap[currentPage];
-                } else {
-                    location.href = 'index-mobile.html';
-                }
+                const targetPage = mobileMap[currentPage] || 'index-mobile.html';
+                // 使用相对路径跳转
+                location.replace('./' + targetPage);
             }
         })();
     </script>

@@ -4,6 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>学校人数统计系统</title>
+    <script>
+        // 设备检测：手机端自动跳转到移动版
+        (function() {
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+            let currentPage = location.pathname.split('/').pop();
+            if (!currentPage) currentPage = location.href.split('/').pop().split('?')[0];
+            if (isMobile && !currentPage.includes('-mobile')) {
+                const mobileMap = {
+                    'index.html': 'index-mobile.html',
+                    'school-statistics.html': 'school-statistics-mobile.html',
+                    'school-income-dashboard.html': 'school-income-dashboard-mobile.html'
+                };
+                const targetPage = mobileMap[currentPage] || 'index-mobile.html';
+                location.replace('./' + targetPage);
+            }
+        })();
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
     <style>
         * {
