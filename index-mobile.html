@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>数据管理系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding-bottom: 80px;
+        }
+
+        /* ===== 顶部标题 ===== */
+        .header {
+            text-align: center;
+            padding: 30px 20px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.85;
+        }
+
+        /* ===== 主内容卡片 ===== */
+        .cards {
+            padding: 0 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card:active {
+            transform: scale(0.98);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+        }
+
+        .card.students::before {
+            background: linear-gradient(90deg, #11998e, #38ef7d);
+        }
+
+        .card.income::before {
+            background: linear-gradient(90deg, #f093fb, #f5576c);
+        }
+
+        .card-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+
+        .card h2 {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .card p {
+            font-size: 13px;
+            color: #666;
+            line-height: 1.5;
+            margin-bottom: 16px;
+        }
+
+        .card-btn {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            text-align: center;
+            border-radius: 25px;
+            font-size: 15px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: opacity 0.2s;
+        }
+
+        .card-btn:active {
+            opacity: 0.8;
+        }
+
+        .card.students .card-btn {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(17,153,142,0.3);
+        }
+
+        .card.income .card-btn {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(245,87,108,0.3);
+        }
+
+        /* ===== 底部Tab导航 ===== */
+        .tab-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 65px;
+            background: white;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            box-shadow: 0 -2px 15px rgba(0,0,0,0.1);
+            border-radius: 20px 20px 0 0;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        .tab-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-decoration: none;
+            color: #999;
+            padding: 8px 16px;
+            transition: color 0.2s;
+        }
+
+        .tab-item.active {
+            color: #667eea;
+        }
+
+        .tab-icon {
+            font-size: 24px;
+            margin-bottom: 4px;
+        }
+
+        .tab-text {
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        /* ===== 状态徽章 ===== */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: rgba(102,126,234,0.1);
+            border-radius: 15px;
+            font-size: 11px;
+            color: #667eea;
+            margin-top: 12px;
+        }
+
+        .status-badge .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #38ef7d;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* ===== 快捷统计卡片 ===== */
+        .stats-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .stat-card {
+            background: rgba(255,255,255,0.15);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            color: white;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            opacity: 0.85;
+        }
+    </style>
+</head>
+<body>
+    <!-- 顶部标题 -->
+    <div class="header">
+        <h1>📊 数据管理系统</h1>
+        <p>学校数据管理一站式平台</p>
+    </div>
+
+    <!-- 主内容 -->
+    <div class="cards">
+        <!-- 学校人数统计 -->
+        <div class="card students">
+            <div class="card-icon">👥</div>
+            <h2>学校人数统计</h2>
+            <p>统计各学校学生人数，支持栋数详情管理，数据可视化图表展示</p>
+            <a href="school-statistics-mobile.html" class="card-btn">打开系统</a>
+            <div class="status-badge">
+                <span class="dot"></span>
+                支持云端同步
+            </div>
+        </div>
+
+        <!-- 收入日报 -->
+        <div class="card income">
+            <div class="card-icon">💰</div>
+            <h2>项目收入日报</h2>
+            <p>学校项目设备收入数据管理，支持日报、周报、月报分析，图表可视化</p>
+            <a href="school-income-dashboard-mobile.html" class="card-btn">打开系统</a>
+            <div class="status-badge">
+                <span class="dot"></span>
+                支持云端同步
+            </div>
+        </div>
+    </div>
+
+    <!-- 底部Tab导航 -->
+    <div class="tab-bar">
+        <a href="index-mobile.html" class="tab-item active">
+            <span class="tab-icon">🏠</span>
+            <span class="tab-text">首页</span>
+        </a>
+        <a href="school-statistics-mobile.html" class="tab-item">
+            <span class="tab-icon">👥</span>
+            <span class="tab-text">人数统计</span>
+        </a>
+        <a href="school-income-dashboard-mobile.html" class="tab-item">
+            <span class="tab-icon">💰</span>
+            <span class="tab-text">收入日报</span>
+        </a>
+    </div>
+</body>
+</html>

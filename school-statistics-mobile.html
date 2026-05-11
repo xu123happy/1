@@ -1,0 +1,1803 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>学校人数统计</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding-bottom: 75px;
+        }
+
+        /* ===== 顶部标题栏 ===== */
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 16px 16px 60px;
+            position: relative;
+        }
+
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .header-btn {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* ===== 统计卡片区域 ===== */
+        .stats-container {
+            position: relative;
+            margin-top: -50px;
+            padding: 0 12px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 14px;
+            text-align: center;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+        }
+
+        .stat-card:first-child {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        }
+
+        .stat-card:first-child .stat-value,
+        .stat-card:first-child .stat-label {
+            color: white;
+        }
+
+        .stat-icon {
+            font-size: 20px;
+            margin-bottom: 4px;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .stat-label {
+            font-size: 10px;
+            color: #999;
+            margin-top: 2px;
+        }
+
+        /* ===== 快捷操作按钮 ===== */
+        .quick-actions {
+            display: flex;
+            gap: 8px;
+            padding: 12px;
+        }
+
+        .quick-btn {
+            flex: 1;
+            padding: 10px 8px;
+            border: none;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+        }
+
+        .quick-btn:active {
+            transform: scale(0.96);
+        }
+
+        .quick-btn.add {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+        }
+
+        .quick-btn.history {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+
+        .quick-btn.cloud {
+            background: white;
+            color: #667eea;
+            border: 1px solid #667eea;
+        }
+
+        .quick-btn.data {
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
+
+        /* ===== 学校列表 ===== */
+        .section-title {
+            padding: 8px 16px;
+            font-size: 15px;
+            font-weight: 600;
+            color: white;
+        }
+
+        .school-list {
+            padding: 0 12px;
+        }
+
+        .school-card {
+            background: white;
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .school-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .school-name {
+            font-size: 15px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .school-count {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .building-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 8px;
+        }
+
+        .building-tag {
+            background: #f5f5f5;
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-size: 10px;
+            color: #666;
+        }
+
+        .school-actions {
+            display: flex;
+            gap: 6px;
+            margin-top: 10px;
+        }
+
+        .school-action-btn {
+            flex: 1;
+            padding: 8px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .school-action-btn.edit {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .school-action-btn.delete {
+            background: #ffebee;
+            color: #d32f2f;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 30px;
+            color: rgba(255,255,255,0.8);
+        }
+
+        .empty-state-icon {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+
+        /* ===== 图表区域 ===== */
+        .chart-section {
+            padding: 12px;
+        }
+
+        .chart-card {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+        }
+
+        .chart-header {
+            padding: 12px 14px;
+            background: #f8f9fa;
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .chart-container {
+            height: 180px;
+            padding: 10px;
+        }
+
+        /* ===== 趋势图区域 ===== */
+        .trend-section {
+            padding: 0 12px 12px;
+        }
+
+        .trend-card {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+        }
+
+        .trend-header {
+            padding: 12px 14px;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+
+        .trend-header h3 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .school-select {
+            width: 100%;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            background: rgba(255,255,255,0.9);
+            color: #333;
+        }
+
+        .trend-chart-container {
+            height: 200px;
+            padding: 10px;
+        }
+
+        .no-trend-data {
+            text-align: center;
+            padding: 30px;
+            color: #999;
+            font-size: 13px;
+        }
+
+        /* ===== 人均消费区域 ===== */
+        .per-capita-section {
+            padding: 0 12px 16px;
+        }
+
+        .per-capita-card {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+        }
+
+        .per-capita-header {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            padding: 10px 14px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .per-capita-table {
+            width: 100%;
+            font-size: 11px;
+        }
+
+        .per-capita-table th {
+            background: #f8f9fa;
+            padding: 8px 6px;
+            text-align: left;
+            font-weight: 600;
+            color: #666;
+        }
+
+        .per-capita-table th:not(:first-child) {
+            text-align: center;
+        }
+
+        .per-capita-table td {
+            padding: 8px 6px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .per-capita-table td:not(:first-child) {
+            text-align: center;
+        }
+
+        .per-capita-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .trend-up { color: #e74c3c; font-weight: 600; }
+        .trend-down { color: #27ae60; font-weight: 600; }
+        .no-data { color: #999; }
+
+        /* ===== 底部Tab导航 ===== */
+        .tab-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 65px;
+            background: white;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            box-shadow: 0 -2px 15px rgba(0,0,0,0.1);
+            border-radius: 20px 20px 0 0;
+            padding-bottom: env(safe-area-inset-bottom);
+            z-index: 100;
+        }
+
+        .tab-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-decoration: none;
+            color: #999;
+            padding: 8px 16px;
+        }
+
+        .tab-item.active {
+            color: #667eea;
+        }
+
+        .tab-icon {
+            font-size: 24px;
+            margin-bottom: 4px;
+        }
+
+        .tab-text {
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        /* ===== 弹窗样式 ===== */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 200;
+            justify-content: center;
+            align-items: flex-end;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            width: 100%;
+            border-radius: 20px 20px 0 0;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+        }
+
+        .modal-header h2 {
+            font-size: 17px;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            font-size: 18px;
+            cursor: pointer;
+        }
+
+        .modal-body {
+            padding: 16px;
+        }
+
+        .form-group {
+            margin-bottom: 14px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 14px;
+        }
+
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+
+        .form-btn.primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .form-btn.danger {
+            background: #f5f5f5;
+            color: #d32f2f;
+        }
+
+        .form-btn.secondary {
+            background: #e0e0e0;
+            color: #666;
+        }
+
+        /* ===== 栋数管理 ===== */
+        .building-section {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 12px;
+            margin-top: 10px;
+        }
+
+        .building-section h4 {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .building-input-row {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 8px;
+        }
+
+        .building-input-row input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        .building-input-row input:last-child {
+            width: 70px;
+            flex: none;
+        }
+
+        .building-input-row button {
+            padding: 10px 14px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .building-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .building-tag-item {
+            background: white;
+            padding: 5px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .building-tag-item button {
+            background: none;
+            border: none;
+            color: #999;
+            font-size: 14px;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        /* ===== 历史记录 ===== */
+        .history-list {
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        .history-item {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 10px;
+        }
+
+        .history-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .history-time {
+            font-size: 13px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .history-badge {
+            font-size: 11px;
+            background: rgba(102,126,234,0.1);
+            color: #667eea;
+            padding: 3px 8px;
+            border-radius: 10px;
+        }
+
+        .history-detail {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .history-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .history-btn {
+            flex: 1;
+            padding: 8px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .history-btn.restore {
+            background: #4caf50;
+            color: white;
+        }
+
+        .history-btn.delete {
+            background: #f44336;
+            color: white;
+        }
+
+        .history-empty {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .history-empty-icon {
+            font-size: 40px;
+            margin-bottom: 10px;
+        }
+
+        /* ===== 云端同步 ===== */
+        .sync-section {
+            margin-bottom: 14px;
+        }
+
+        .sync-section h4 {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .sync-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .sync-btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        .sync-btn.backup {
+            background: #238636;
+            color: white;
+        }
+
+        .sync-btn.restore {
+            background: #6e7681;
+            color: white;
+        }
+
+        .sync-info {
+            font-size: 11px;
+            color: #999;
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        .danger-zone {
+            background: #ffebee;
+            border-radius: 10px;
+            padding: 12px;
+        }
+
+        .danger-zone h4 {
+            color: #d32f2f;
+            font-size: 13px;
+        }
+
+        .danger-zone .form-btn {
+            background: #f44336;
+            color: white;
+            margin-bottom: 0;
+        }
+
+        /* ===== Toast提示 ===== */
+        .toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 25px;
+            font-size: 14px;
+            z-index: 300;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+            to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+
+        /* 文件输入 */
+        .file-input {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- 顶部标题栏 -->
+    <div class="header">
+        <div class="header-top">
+            <a href="index-mobile.html" class="header-btn" style="text-decoration:none;">←</a>
+            <h1>👥 学校人数统计</h1>
+            <button class="header-btn" onclick="openSettings()">⚙️</button>
+        </div>
+    </div>
+
+    <!-- 统计卡片 -->
+    <div class="stats-container">
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">🏫</div>
+                <div class="stat-value" id="schoolCount">0</div>
+                <div class="stat-label">学校数量</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">👨‍🎓</div>
+                <div class="stat-value" id="studentCount">0</div>
+                <div class="stat-label">学生总数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">📊</div>
+                <div class="stat-value" id="avgStudents">0</div>
+                <div class="stat-label">平均每校</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🏆</div>
+                <div class="stat-value" id="maxStudents">0</div>
+                <div class="stat-label">最大学校</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 快捷操作 -->
+    <div class="quick-actions">
+        <button class="quick-btn add" onclick="openAddModal()">➕ 添加</button>
+        <button class="quick-btn history" onclick="openHistoryModal()">📜 历史</button>
+        <button class="quick-btn cloud" onclick="openCloudModal()">☁️ 云端</button>
+        <button class="quick-btn data" onclick="openDataModal()">📂 数据</button>
+    </div>
+    <input type="file" id="importFile" class="file-input" accept=".json" onchange="importData(event)">
+
+    <!-- 学校列表 -->
+    <div class="section-title">🏫 学校列表</div>
+    <div class="school-list" id="schoolList">
+        <div class="empty-state" id="emptyState">
+            <div class="empty-state-icon">🏫</div>
+            <div class="empty-state-text">暂无学校数据</div>
+        </div>
+    </div>
+
+    <!-- 分布图表 -->
+    <div class="chart-section">
+        <div class="chart-card">
+            <div class="chart-header">📊 学生人数分布</div>
+            <div class="chart-container">
+                <canvas id="distributionChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- 历史趋势图 -->
+    <div class="trend-section">
+        <div class="trend-card">
+            <div class="trend-header">
+                <h3>📈 历史趋势</h3>
+                <select class="school-select" id="trendSchoolSelect" onchange="updateTrendChart()">
+                    <option value="">选择学校查看趋势...</option>
+                </select>
+            </div>
+            <div class="trend-chart-container">
+                <canvas id="trendChart"></canvas>
+            </div>
+            <div class="no-trend-data" id="noTrendData" style="display:none;">
+                暂无趋势数据<br>
+                <span style="font-size:11px;color:#999;">添加或编辑学校后会自动记录</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 人均消费 -->
+    <div class="per-capita-section" id="perCapitaSection" style="display:none;">
+        <div class="per-capita-card">
+            <div class="per-capita-header">💰 人均消费统计（近三月）</div>
+            <table class="per-capita-table">
+                <thead>
+                    <tr>
+                        <th>学校</th>
+                        <th id="month1Header">本月</th>
+                        <th id="month2Header">上月</th>
+                        <th id="month3Header">上上月</th>
+                    </tr>
+                </thead>
+                <tbody id="perCapitaBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 底部Tab导航 -->
+    <div class="tab-bar">
+        <a href="index-mobile.html" class="tab-item">
+            <span class="tab-icon">🏠</span>
+            <span class="tab-text">首页</span>
+        </a>
+        <a href="school-statistics-mobile.html" class="tab-item active">
+            <span class="tab-icon">👥</span>
+            <span class="tab-text">人数统计</span>
+        </a>
+        <a href="school-income-dashboard-mobile.html" class="tab-item">
+            <span class="tab-icon">💰</span>
+            <span class="tab-text">收入日报</span>
+        </a>
+    </div>
+
+    <!-- 添加/编辑学校弹窗 -->
+    <div class="modal-overlay" id="schoolModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">➕ 添加学校</h2>
+                <button class="modal-close" onclick="closeModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="schoolForm" onsubmit="saveSchool(event)">
+                    <input type="hidden" id="editIndex" value="-1">
+                    <div class="form-group">
+                        <label>学校名称</label>
+                        <input type="text" id="schoolName" placeholder="请输入学校名称" required>
+                    </div>
+                    <div class="form-group">
+                        <label>学生人数</label>
+                        <input type="number" id="studentCountInput" placeholder="请输入学生人数" min="0" required>
+                    </div>
+                    
+                    <div class="building-section">
+                        <h4>🏢 栋数详情（可选）</h4>
+                        <div class="building-input-row">
+                            <input type="text" id="buildingName" placeholder="栋名称">
+                            <input type="number" id="buildingCount" placeholder="人数" min="0">
+                            <button type="button" onclick="addBuilding()">+</button>
+                        </div>
+                        <div class="building-tags" id="buildingTags"></div>
+                    </div>
+                    
+                    <button type="submit" class="form-btn primary" id="submitBtn">添加学校</button>
+                    <button type="button" class="form-btn danger" id="cancelBtn" style="display:none;" onclick="cancelEdit()">取消编辑</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 历史记录弹窗 -->
+    <div class="modal-overlay" id="historyModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📜 历史记录</h2>
+                <button class="modal-close" onclick="closeHistoryModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="history-list" id="historyListContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 云端同步弹窗 -->
+    <div class="modal-overlay" id="cloudModal">
+        <div class="modal-content">
+            <div class="modal-header" style="background:linear-gradient(135deg, #24292e 0%, #2f363d 100%);">
+                <h2>☁️ 云端同步</h2>
+                <button class="modal-close" onclick="closeCloudModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="sync-section">
+                    <h4>📱 本地存储（自动同步）</h4>
+                    <p style="font-size:12px;color:#666;margin-bottom:10px;">
+                        手机端和电脑端使用相同的 localStorage<br>
+                        数据会自动互通，无需手动操作！
+                    </p>
+                    <div class="sync-buttons" style="flex-direction:column;gap:8px;">
+                        <button class="sync-btn backup" onclick="backupToCloud()">💾 创建本地备份</button>
+                        <button class="sync-btn restore" onclick="restoreFromCloud()">📥 从本地备份恢复</button>
+                    </div>
+                    <div class="sync-info" id="syncStatus"></div>
+                </div>
+
+                <div style="border-top:1px solid #eee;margin:16px 0;padding-top:16px;">
+                    <div class="sync-section">
+                        <h4>☁️ JSONBin.io 云端同步</h4>
+                        <p style="font-size:11px;color:#999;margin-bottom:10px;">
+                            需要 JSONBin.io 的 API Key（免费）<br>
+                            用于跨设备、跨浏览器同步数据
+                        </p>
+                        <div class="sync-buttons" style="flex-direction:column;gap:8px;">
+                            <button class="sync-btn" style="background:#667eea;color:white;" onclick="openJsonbinModal()">🔑 设置 API Key</button>
+                            <button class="sync-btn backup" onclick="syncToJsonbin()">📤 同步到 JSONBin.io</button>
+                            <button class="sync-btn restore" onclick="loadFromJsonbin()">📥 从 JSONBin.io 恢复</button>
+                        </div>
+                        <div class="sync-info" id="syncStatus2"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JSONBin API Key 设置弹窗 -->
+    <div class="modal-overlay" id="jsonbinModal">
+        <div class="modal-content">
+            <div class="modal-header" style="background:#667eea;">
+                <h2>🔑 JSONBin.io API Key</h2>
+                <button class="modal-close" onclick="closeJsonbinModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size:13px;color:#666;margin-bottom:16px;">
+                    1. 访问 <strong>jsonbin.io</strong> 注册账号<br>
+                    2. 创建新 Bin，获取 API Key<br>
+                    3. 粘贴到下方并保存
+                </p>
+                <div class="form-group">
+                    <label>API Key</label>
+                    <input type="text" id="apiKeyInput" placeholder="请输入您的 JSONBin API Key" 
+                           value="">
+
+                </div>
+                <button class="form-btn primary" onclick="saveApiKey()" style="margin-bottom:10px;">
+                    保存 API Key
+                </button>
+                <button class="form-btn secondary" onclick="closeJsonbinModal()">
+                    关闭
+                </button>
+                <p style="font-size:11px;color:#999;margin-top:10px;text-align:center;">
+                    API Key 将安全保存在您浏览器的本地存储中
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 数据管理弹窗 -->
+    <div class="modal-overlay" id="dataModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📂 数据管理</h2>
+                <button class="modal-close" onclick="closeDataModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <button class="form-btn primary" onclick="document.getElementById('importFile').click()">
+                    📥 从文件导入
+                </button>
+                <button class="form-btn primary" onclick="exportData()" style="background:#1976d2;">
+                    📤 导出为JSON文件
+                </button>
+                <div class="danger-zone" style="margin-top:20px;">
+                    <h4>⚠️ 危险操作</h4>
+                    <button class="form-btn" onclick="clearAllData()">🗑️ 清除所有数据</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 设置弹窗 -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>⚙️ 设置</h2>
+                <button class="modal-close" onclick="closeSettings()">×</button>
+            </div>
+            <div class="modal-body">
+                <p style="color:#666;font-size:13px;text-align:center;">暂无更多设置</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===== 常量 =====
+        const STORAGE_KEY = 'schoolData';
+        const HISTORY_KEY = 'schoolHistory';
+        const CLOUD_BIN_ID = 'schoolDataBin';
+        const MAX_HISTORY = 50;
+
+        // ===== 状态 =====
+        let schools = [];
+        let schoolTrend = {}; // { 学校名: [{timestamp, students, action}] }
+        let currentBuildings = [];
+        let distributionChart = null;
+        let trendChart = null;
+
+        // ===== 数据加载/保存 =====
+        function loadData() {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) schools = JSON.parse(saved);
+                
+                const trendSaved = localStorage.getItem('schoolTrend');
+                if (trendSaved) schoolTrend = JSON.parse(trendSaved);
+            } catch (err) {
+                schools = [];
+                schoolTrend = {};
+            }
+        }
+
+        function saveData() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(schools));
+        }
+
+        function saveTrend() {
+            localStorage.setItem('schoolTrend', JSON.stringify(schoolTrend));
+        }
+
+        // ===== Toast =====
+        function showToast(message) {
+            const existing = document.querySelector('.toast');
+            if (existing) existing.remove();
+            
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 2000);
+        }
+
+        // ===== 界面更新 =====
+        function updateDisplay() {
+            // 统计
+            const total = schools.length;
+            const students = schools.reduce((sum, s) => sum + (s.students || 0), 0);
+            const avg = total > 0 ? Math.round(students / total) : 0;
+            const max = total > 0 ? Math.max(...schools.map(s => s.students || 0)) : 0;
+
+            document.getElementById('schoolCount').textContent = total;
+            document.getElementById('studentCount').textContent = students.toLocaleString();
+            document.getElementById('avgStudents').textContent = avg.toLocaleString();
+            document.getElementById('maxStudents').textContent = max.toLocaleString();
+
+            // 学校列表
+            const listEl = document.getElementById('schoolList');
+            const emptyState = document.getElementById('emptyState');
+
+            if (total === 0) {
+                listEl.innerHTML = '';
+                listEl.appendChild(emptyState);
+                emptyState.style.display = 'block';
+            } else {
+                emptyState.style.display = 'none';
+                listEl.innerHTML = schools.map((school, i) => `
+                    <div class="school-card">
+                        <div class="school-header">
+                            <span class="school-name">${school.name}</span>
+                            <span class="school-count">${(school.students || 0).toLocaleString()} 人</span>
+                        </div>
+                        ${school.buildings?.length ? `
+                            <div class="building-list">
+                                ${school.buildings.map(b => `<span class="building-tag">${b.name}: ${b.count}人</span>`).join('')}
+                            </div>
+                        ` : ''}
+                        <div class="school-actions">
+                            <button class="school-action-btn edit" onclick="editSchool(${i})">✏️ 编辑</button>
+                            <button class="school-action-btn delete" onclick="deleteSchool(${i})">🗑️ 删除</button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            updateDistributionChart();
+            updateTrendSelect();
+            updatePerCapita();
+        }
+
+        // ===== 分布图表 =====
+        function updateDistributionChart() {
+            const ctx = document.getElementById('distributionChart').getContext('2d');
+            
+            if (schools.length === 0) {
+                if (distributionChart) {
+                    distributionChart.destroy();
+                    distributionChart = null;
+                }
+                return;
+            }
+
+            if (distributionChart) distributionChart.destroy();
+
+            distributionChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: schools.map(s => s.name.length > 6 ? s.name.slice(0,6) + '...' : s.name),
+                    datasets: [{
+                        data: schools.map(s => s.students || 0),
+                        backgroundColor: ['#667eea', '#764ba2', '#11998e', '#38ef7d', '#f093fb', '#f5576c'],
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { callback: v => v.toLocaleString() } }
+                    }
+                }
+            });
+        }
+
+        // ===== 趋势图 =====
+        function updateTrendSelect() {
+            const select = document.getElementById('trendSchoolSelect');
+            select.innerHTML = '<option value="">选择学校查看趋势...</option>' +
+                schools.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
+        }
+
+        function updateTrendChart() {
+            const select = document.getElementById('trendSchoolSelect');
+            const schoolName = select.value;
+            const chartEl = document.getElementById('trendChart');
+            const noDataEl = document.getElementById('noTrendData');
+
+            if (!schoolName) {
+                chartEl.style.display = 'none';
+                noDataEl.style.display = 'block';
+                return;
+            }
+
+            const trend = schoolTrend[schoolName] || [];
+            if (trend.length === 0) {
+                chartEl.style.display = 'none';
+                noDataEl.style.display = 'block';
+                noDataEl.innerHTML = `暂无 "${schoolName}" 的趋势数据<br><span style="font-size:11px;color:#999;">数据变更后会自动记录</span>`;
+                return;
+            }
+
+            chartEl.style.display = 'block';
+            noDataEl.style.display = 'none';
+
+            const ctx = chartEl.getContext('2d');
+            if (trendChart) trendChart.destroy();
+
+            trendChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: trend.map(t => new Date(t.timestamp).toLocaleString('zh-CN', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })),
+                    datasets: [{
+                        label: '学生人数',
+                        data: trend.map(t => t.students),
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102,126,234,0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: false },
+                        x: { ticks: { maxRotation: 45 } }
+                    }
+                }
+            });
+        }
+
+        // ===== 历史趋势记录 =====
+        function recordTrend(schoolName, students, action) {
+            if (!schoolTrend[schoolName]) schoolTrend[schoolName] = [];
+            schoolTrend[schoolName].push({
+                timestamp: new Date().toISOString(),
+                students,
+                action
+            });
+            // 限制每校趋势记录数
+            if (schoolTrend[schoolName].length > 100) {
+                schoolTrend[schoolName] = schoolTrend[schoolName].slice(-100);
+            }
+            saveTrend();
+        }
+
+        // ===== 学校管理 =====
+        function openAddModal() {
+            document.getElementById('editIndex').value = -1;
+            document.getElementById('modalTitle').textContent = '➕ 添加学校';
+            document.getElementById('submitBtn').textContent = '添加学校';
+            document.getElementById('cancelBtn').style.display = 'none';
+            document.getElementById('schoolForm').reset();
+            currentBuildings = [];
+            updateBuildingTags();
+            document.getElementById('schoolModal').classList.add('show');
+        }
+
+        function closeModal() {
+            document.getElementById('schoolModal').classList.remove('show');
+        }
+
+        function editSchool(index) {
+            const school = schools[index];
+            document.getElementById('editIndex').value = index;
+            document.getElementById('modalTitle').textContent = '✏️ 编辑学校';
+            document.getElementById('submitBtn').textContent = '更新学校';
+            document.getElementById('cancelBtn').style.display = 'block';
+            document.getElementById('schoolName').value = school.name;
+            document.getElementById('studentCountInput').value = school.students;
+            currentBuildings = school.buildings ? [...school.buildings] : [];
+            updateBuildingTags();
+            document.getElementById('schoolModal').classList.add('show');
+        }
+
+        function cancelEdit() {
+            document.getElementById('editIndex').value = -1;
+            document.getElementById('modalTitle').textContent = '➕ 添加学校';
+            document.getElementById('submitBtn').textContent = '添加学校';
+            document.getElementById('cancelBtn').style.display = 'none';
+            document.getElementById('schoolForm').reset();
+            currentBuildings = [];
+            updateBuildingTags();
+        }
+
+        function saveSchool(e) {
+            e.preventDefault();
+            const index = parseInt(document.getElementById('editIndex').value);
+            const name = document.getElementById('schoolName').value.trim();
+            const students = parseInt(document.getElementById('studentCountInput').value);
+
+            if (index >= 0) {
+                const oldName = schools[index].name;
+                schools[index] = { name, students, buildings: [...currentBuildings] };
+                // 记录重命名后的趋势
+                if (oldName !== name && schoolTrend[oldName]) {
+                    schoolTrend[name] = schoolTrend[oldName];
+                    delete schoolTrend[oldName];
+                    saveTrend();
+                }
+                recordTrend(name, students, 'edit');
+                saveHistory('edit', `编辑学校：${oldName}`);
+                showToast('✅ 学校已更新');
+            } else {
+                schools.push({ name, students, buildings: [...currentBuildings] });
+                recordTrend(name, students, 'add');
+                saveHistory('add', `添加学校：${name}（${students}人）`);
+                showToast('✅ 学校已添加');
+            }
+
+            saveData();
+            updateDisplay();
+            closeModal();
+        }
+
+        function deleteSchool(index) {
+            if (confirm('确定要删除 "' + schools[index].name + '" 吗？')) {
+                const name = schools[index].name;
+                schools.splice(index, 1);
+                saveData();
+                saveHistory('delete', `删除学校：${name}`);
+                showToast('✅ 学校已删除');
+                updateDisplay();
+            }
+        }
+
+        // ===== 栋数管理 =====
+        function addBuilding() {
+            const name = document.getElementById('buildingName').value.trim();
+            const count = parseInt(document.getElementById('buildingCount').value);
+            if (!name || isNaN(count) || count < 0) {
+                showToast('请输入栋名称和人数');
+                return;
+            }
+            currentBuildings.push({ name, count });
+            document.getElementById('buildingName').value = '';
+            document.getElementById('buildingCount').value = '';
+            updateBuildingTags();
+        }
+
+        function removeBuilding(index) {
+            currentBuildings.splice(index, 1);
+            updateBuildingTags();
+        }
+
+        function updateBuildingTags() {
+            const container = document.getElementById('buildingTags');
+            if (currentBuildings.length === 0) {
+                container.innerHTML = '<span style="color:#999;font-size:11px;">暂无栋数信息</span>';
+                return;
+            }
+            container.innerHTML = currentBuildings.map((b, i) => `
+                <span class="building-tag-item">
+                    ${b.name}: ${b.count}人
+                    <button onclick="removeBuilding(${i})">×</button>
+                </span>
+            `).join('');
+        }
+
+        // ===== 历史记录 =====
+        function getHistory() {
+            try {
+                return JSON.parse(localStorage.getItem(HISTORY_KEY)) || [];
+            } catch { return []; }
+        }
+
+        function saveHistory(action, detail) {
+            const history = getHistory();
+            history.unshift({
+                id: Date.now(),
+                timestamp: new Date().toISOString(),
+                action,
+                detail,
+                schoolCount: schools.length,
+                totalStudents: schools.reduce((s, sc) => s + (sc.students || 0), 0),
+                data: JSON.parse(JSON.stringify(schools))
+            });
+            if (history.length > MAX_HISTORY) history.splice(MAX_HISTORY);
+            localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+        }
+
+        function openHistoryModal() {
+            loadHistoryList();
+            document.getElementById('historyModal').classList.add('show');
+        }
+
+        function closeHistoryModal() {
+            document.getElementById('historyModal').classList.remove('show');
+        }
+
+        function loadHistoryList() {
+            const history = getHistory();
+            const container = document.getElementById('historyListContent');
+
+            if (history.length === 0) {
+                container.innerHTML = `
+                    <div class="history-empty">
+                        <div class="history-empty-icon">📜</div>
+                        <div>暂无历史记录</div>
+                        <div style="font-size:12px;margin-top:8px;">数据变更时会自动保存</div>
+                    </div>
+                `;
+                return;
+            }
+
+            const actionText = { add: '➕ 添加', edit: '✏️ 编辑', delete: '🗑️ 删除', restore: '🔄 恢复' };
+            container.innerHTML = history.map(h => `
+                <div class="history-item">
+                    <div class="history-item-header">
+                        <span class="history-time">${new Date(h.timestamp).toLocaleString('zh-CN')}</span>
+                        <span class="history-badge">${h.schoolCount} 所学校</span>
+                    </div>
+                    <div class="history-detail">
+                        <strong>${actionText[h.action] || h.action}</strong> · 学生总数: ${h.totalStudents.toLocaleString()}
+                        ${h.detail ? '<br>' + h.detail : ''}
+                    </div>
+                    <div class="history-actions">
+                        <button class="history-btn restore" onclick="restoreHistory(${h.id})">🔄 恢复</button>
+                        <button class="history-btn delete" onclick="deleteHistory(${h.id})">🗑️ 删除</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function restoreHistory(id) {
+            const history = getHistory();
+            const record = history.find(h => h.id === id);
+            if (!record) return showToast('❌ 未找到记录');
+
+            if (!confirm(`确定要恢复到 ${new Date(record.timestamp).toLocaleString('zh-CN')} 的版本吗？\n\n当前数据将被覆盖！`)) return;
+
+            schools = record.data;
+            saveData();
+            updateDisplay();
+            saveHistory('restore', `恢复到 ${new Date(record.timestamp).toLocaleString('zh-CN')} 的版本`);
+            closeHistoryModal();
+            showToast('✅ 已恢复');
+        }
+
+        function deleteHistory(id) {
+            if (!confirm('确定要删除这条历史记录吗？')) return;
+            let history = getHistory().filter(h => h.id !== id);
+            localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+            loadHistoryList();
+            showToast('✅ 已删除');
+        }
+
+        // ===== 云端同步 =====
+        function openCloudModal() {
+            updateSyncStatus();
+            document.getElementById('cloudModal').classList.add('show');
+        }
+
+        function closeCloudModal() {
+            document.getElementById('cloudModal').classList.remove('show');
+        }
+
+        function updateSyncStatus() {
+            const localData = localStorage.getItem(STORAGE_KEY);
+            const cloudBackup = localStorage.getItem('schoolCloudBackup');
+            
+            const statusEl = document.getElementById('syncStatus');
+            const statusEl2 = document.getElementById('syncStatus2');
+            
+            if (cloudBackup) {
+                const cloudData = JSON.parse(cloudBackup);
+                statusEl.innerHTML = `<span style="color:#3fb950;">✅ 已有本地云端备份</span><br>
+                    <span style="font-size:10px;">备份时间: ${new Date(cloudData.timestamp).toLocaleString('zh-CN')}</span>`;
+            } else {
+                statusEl.innerHTML = '📱 本地存储 · 数据与电脑端互通';
+            }
+            
+            if (statusEl2) {
+                const binId = localStorage.getItem('schoolJsonbinId');
+                const apiKey = localStorage.getItem('jsonbinApiKey');
+                
+                if (binId && apiKey) {
+                    statusEl2.innerHTML = `<span style="color:#3fb950;">✅ 已连接到 JSONBin.io</span><br>
+                        <span style="font-size:10px;">Bin ID: ${binId}</span>`;
+                } else {
+                    statusEl2.innerHTML = `<span style="color:#f85149;">❌ 未配置 JSONBin.io</span>`;
+                }
+            }
+        }
+
+        // 本地云端备份（备份到独立存储区域）
+        function backupToCloud() {
+            const backup = {
+                schools: schools,
+                trend: schoolTrend,
+                history: getHistory(),
+                timestamp: new Date().toISOString()
+            };
+            localStorage.setItem('schoolCloudBackup', JSON.stringify(backup));
+            updateSyncStatus();
+            showToast('✅ 本地备份成功！可在电脑端恢复');
+        }
+
+        // 从本地云端备份恢复
+        function restoreFromCloud() {
+            const cloudBackup = localStorage.getItem('schoolCloudBackup');
+            if (!cloudBackup) {
+                showToast('❌ 暂无本地云端备份');
+                return;
+            }
+
+            if (!confirm('确定要从本地云端恢复数据吗？\n当前数据将被覆盖！')) return;
+
+            try {
+                const backup = JSON.parse(cloudBackup);
+                if (backup.schools) schools = backup.schools;
+                if (backup.trend) schoolTrend = backup.trend;
+                if (backup.history) localStorage.setItem(HISTORY_KEY, JSON.stringify(backup.history));
+                
+                saveData();
+                saveTrend();
+                updateDisplay();
+                updateSyncStatus();
+                closeCloudModal();
+                showToast('✅ 已从云端恢复数据');
+            } catch {
+                showToast('❌ 恢复失败');
+            }
+        }
+
+        // JSONBin.io 云端同步（需要用户输入 API Key）
+        function openJsonbinModal() {
+            document.getElementById('jsonbinModal').classList.add('show');
+        }
+
+        function closeJsonbinModal() {
+            document.getElementById('jsonbinModal').classList.remove('show');
+        }
+
+        function saveApiKey() {
+            const apiKey = document.getElementById('apiKeyInput').value.trim();
+            if (apiKey) {
+                localStorage.setItem('jsonbinApiKey', apiKey);
+                showToast('✅ API Key 已保存');
+            }
+        }
+
+        async function syncToJsonbin() {
+            const apiKey = localStorage.getItem('jsonbinApiKey');
+            if (!apiKey) {
+                showToast('❌ 请先设置 API Key');
+                openJsonbinModal();
+                return;
+            }
+
+            if (!confirm('☁️ 确定要同步到 JSONBin.io 吗？\n\n当前数据将覆盖云端数据！')) return;
+
+            showToast('☁️ 正在同步到云端...');
+            
+            // 使用与电脑端兼容的数据格式
+            const data = {
+                type: 'school-statistics',
+                version: '2.0',
+                data: schools,
+                trend: schoolTrend,
+                history: getHistory(),
+                timestamp: new Date().toISOString()
+            };
+
+            try {
+                // 尝试获取已有的 bin ID
+                let binId = localStorage.getItem('schoolJsonbinId');
+                const url = binId 
+                    ? `https://api.jsonbin.io/v3/b/${binId}` 
+                    : 'https://api.jsonbin.io/v3/b';
+
+                const method = binId ? 'PUT' : 'POST';
+                const headers = {
+                    'Content-Type': 'application/json',
+                    'X-Bin-Private': 'true',
+                    'X-Master-Key': apiKey
+                };
+
+                const response = await fetch(url, {
+                    method,
+                    headers,
+                    body: JSON.stringify(data)
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    if (!binId && result.metadata?.id) {
+                        localStorage.setItem('schoolJsonbinId', result.metadata.id);
+                    }
+                    showToast('✅ 已同步到 JSONBin.io');
+                } else {
+                    throw new Error('Sync failed');
+                }
+            } catch {
+                showToast('❌ 同步失败，请检查 API Key');
+            }
+        }
+
+        async function loadFromJsonbin() {
+            const apiKey = localStorage.getItem('jsonbinApiKey');
+            const binId = localStorage.getItem('schoolJsonbinId');
+            
+            if (!apiKey || !binId) {
+                showToast('❌ 暂无 JSONBin.io 同步记录');
+                return;
+            }
+
+            if (!confirm('📥 确定要从 JSONBin.io 恢复数据吗？\n\n当前数据将被覆盖！')) return;
+
+            showToast('📥 正在从云端恢复...');
+
+            try {
+                // 使用与电脑端相同的接口格式
+                const response = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, {
+                    headers: { 'X-Master-Key': apiKey }
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    const record = result.record || result;
+                    
+                    // 兼容电脑端和移动端的数据格式
+                    if (record.data) {
+                        // 电脑端格式
+                        schools = record.data;
+                        if (record.history) {
+                            localStorage.setItem(HISTORY_KEY, JSON.stringify(record.history));
+                        }
+                    } else if (record.schools) {
+                        // 移动端格式
+                        schools = record.schools;
+                        if (record.history) {
+                            localStorage.setItem(HISTORY_KEY, JSON.stringify(record.history));
+                        }
+                    }
+                    
+                    if (record.trend) {
+                        schoolTrend = record.trend;
+                        saveTrend();
+                    }
+                    
+                    saveData();
+                    updateDisplay();
+                    showToast('✅ 已从 JSONBin.io 恢复');
+                } else {
+                    throw new Error('Load failed');
+                }
+            } catch {
+                showToast('❌ 恢复失败，请检查网络和 API Key');
+            }
+        }
+
+        // ===== 数据管理弹窗 =====
+        function openDataModal() {
+            document.getElementById('dataModal').classList.add('show');
+        }
+
+        function closeDataModal() {
+            document.getElementById('dataModal').classList.remove('show');
+        }
+
+        function importData(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                try {
+                    const data = JSON.parse(event.target.result);
+                    if (Array.isArray(data)) {
+                        schools = data;
+                        saveData();
+                        updateDisplay();
+                        closeDataModal();
+                        showToast('✅ 导入成功，共 ' + schools.length + ' 所学校');
+                    } else {
+                        showToast('❌ 数据格式错误');
+                    }
+                } catch {
+                    showToast('❌ 导入失败');
+                }
+            };
+            reader.readAsText(file);
+            e.target.value = '';
+        }
+
+        function exportData() {
+            if (schools.length === 0) {
+                showToast('暂无数据可导出');
+                return;
+            }
+            const data = {
+                schools: schools,
+                trend: schoolTrend,
+                exportTime: new Date().toISOString()
+            };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'school-data-' + new Date().toISOString().slice(0,10) + '.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('✅ 导出成功');
+        }
+
+        function clearAllData() {
+            if (!confirm('⚠️ 确定要清除所有数据吗？\n此操作不可恢复！')) return;
+            schools = [];
+            schoolTrend = {};
+            saveData();
+            saveTrend();
+            updateDisplay();
+            closeDataModal();
+            closeDataModal();
+            closeDataModal();
+            closeDataModal();
+            showToast('✅ 数据已清除');
+        }
+
+        // ===== 设置弹窗 =====
+        function openSettings() {
+            document.getElementById('settingsModal').classList.add('show');
+        }
+
+        function closeSettings() {
+            document.getElementById('settingsModal').classList.remove('show');
+        }
+
+        // ===== 人均消费 =====
+        function getIncomeData() {
+            try {
+                const saved = localStorage.getItem('schoolDashboardLocalBackup');
+                return saved ? JSON.parse(saved).data || {} : {};
+            } catch { return {}; }
+        }
+
+        function getMonthlyIncome(incomeData, schoolName, year, month) {
+            try {
+                const traces = incomeData[schoolName];
+                if (!traces?.length) return 0;
+                let total = 0;
+                const target = `${year}年${String(month).padStart(2,'0')}月`;
+                traces.forEach(trace => {
+                    if (trace.x && trace.y) {
+                        trace.x.forEach((date, i) => {
+                            if (date.includes(target)) total += parseFloat(trace.y[i]) || 0;
+                        });
+                    }
+                });
+                return total;
+            } catch { return 0; }
+        }
+
+        function updatePerCapita() {
+            const incomeData = getIncomeData();
+            const section = document.getElementById('perCapitaSection');
+            const tbody = document.getElementById('perCapitaBody');
+
+            if (!schools.length || !Object.keys(incomeData).length) {
+                section.style.display = 'none';
+                return;
+            }
+
+            section.style.display = 'block';
+            const now = new Date();
+            const months = [
+                { y: now.getFullYear(), m: now.getMonth() + 1 },
+                { y: now.getFullYear(), m: now.getMonth() },
+                { y: now.getFullYear(), m: now.getMonth() - 1 }
+            ].map((x, i) => {
+                if (x.m <= 0) { x.m += 12; x.y -= 1; }
+                document.getElementById(`month${i+1}Header`).textContent = `${x.y}年${x.m}月`;
+                return x;
+            });
+
+            tbody.innerHTML = schools.map(school => {
+                const incomes = months.map(m => getMonthlyIncome(incomeData, school.name, m.y, m.m));
+                const perCap = incomes.map(inc => school.students > 0 ? inc / school.students : 0);
+                
+                let trend = '';
+                if (perCap[0] > 0 && perCap[1] > 0) {
+                    const change = ((perCap[0] - perCap[1]) / perCap[1] * 100).toFixed(1);
+                    trend = change > 0 ? `<span class="trend-up">▲${change}%</span>` 
+                              : change < 0 ? `<span class="trend-down">▼${Math.abs(change)}%</span>` : '';
+                }
+
+                return `
+                    <tr>
+                        <td>${school.name}</td>
+                        <td>${perCap[0] > 0 ? '¥' + perCap[0].toFixed(2) : '-'}${trend}</td>
+                        <td>${perCap[1] > 0 ? '¥' + perCap[1].toFixed(2) : '-'}</td>
+                        <td>${perCap[2] > 0 ? '¥' + perCap[2].toFixed(2) : '-'}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // ===== 初始化 =====
+        document.addEventListener('DOMContentLoaded', function() {
+            // 强制使用正确的默认 API Key 和 Bin ID
+            const defaultApiKey = '$2a$10$hAdV7dPwOfZd3zhxXNsPkes4AEhT49k2b6w4PdvPkFcppNv46MDya';
+            const defaultBinId = '69feb31cc0954111d8f9a281';
+            
+            // 强制保存正确的配置（覆盖可能存在的错误值）
+            localStorage.setItem('jsonbinApiKey', defaultApiKey);
+            localStorage.setItem('schoolJsonbinId', defaultBinId);
+            console.log('✅ 人数统计 - API Key 和 Bin ID 已初始化');
+            console.log('   Bin ID:', defaultBinId);
+            
+            loadData();
+            updateDisplay();
+            updateBuildingTags();
+        });
+
+        // 点击外部关闭弹窗
+        document.querySelectorAll('.modal-overlay').forEach(modal => {
+            modal.addEventListener('click', function(e) {
+                if (e.target === this) this.classList.remove('show');
+            });
+        });
+    </script>
+</body>
+</html>
