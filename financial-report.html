@@ -2987,7 +2987,12 @@ document.addEventListener('DOMContentLoaded', () => {
   initColFilterPanel();
   renderAll();
   renderSaveList();
-  autoRestoreFromCloud();
+  // 非阻塞式云端恢复：先让页面正常渲染，后台静默尝试恢复
+  if (requestIdleCallback) {
+    requestIdleCallback(() => autoRestoreFromCloud());
+  } else {
+    setTimeout(() => autoRestoreFromCloud(), 100);
+  }
 });
 
 // ============== localStorage 保存/加载/删除 ==============
@@ -3329,7 +3334,7 @@ async function restoreFromCloud() {
   }
 }
 
-// 页面打开时自动从云端恢复
+// 页面打开时自动从云端恢复（非阻塞，失败不影响页面使用）
 async function autoRestoreFromCloud() {
   const binId = getCloudBinId();
   if (!binId) return;
@@ -3338,7 +3343,7 @@ async function autoRestoreFromCloud() {
   const url = CLOUD_API_URL + '/' + binId + '/latest';
 
   try {
-    // 使用 XMLHttpRequest，file:// 下比 fetch 更可靠
+    // 使用 XMLHttpRequest，加 5 秒超时避免长时间阻塞
     const result = await new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open('GET', url, true);
@@ -3350,9 +3355,9 @@ async function autoRestoreFromCloud() {
           reject(new Error('HTTP ' + xhr.status));
         }
       };
-      xhr.onerror = function() { reject(new Error('网络请求失败，可能是 file:// 协议限制')); };
-      xhr.ontimeout = function() { reject(new Error('请求超时')); };
-      xhr.timeout = 8000;
+      xhr.onerror = function() { reject(new Error('网络请求失败')); };
+      xhr.ontimeout = function() { reject(new Error('请求超时（云端可能不可达）')); };
+      xhr.timeout = 5000; // 5秒超时
       xhr.send();
     });
 
@@ -3400,7 +3405,9 @@ async function autoRestoreFromCloud() {
       setCloudStatus('☁️ 云端备份可用，当前已有数据');
     }
   } catch (err) {
-    setCloudStatus('⚠️ 自动恢复失败: ' + err.message);
+    // 静默失败，不影响页面正常使用
+    setCloudStatus('☁️ 云端未连接（可手动恢复）');
+    console.warn('[云端自动恢复] 失败（不影响本地使用）:', err.message);
   }
 }
 
