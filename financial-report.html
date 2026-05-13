@@ -897,10 +897,15 @@
         <span>🗑️</span>
         <span>清除云端数据</span>
       </button>
+      <button class="load-btn" onclick="resetToDefaultBinId()" id="resetBinIdBtn" title="将 Bin ID 重置为代码中的默认值，解决新设备无法连接云端的问题">
+        <span>🔄</span>
+        <span>恢复默认Bin</span>
+      </button>
     </div>
   </div>
   <div class="save-list" id="saveList"></div>
   <div id="cloudStatus" style="margin-top: 8px; font-size: 12px; color: #666; padding: 0 4px;"></div>
+  <div id="binIdDisplay" style="margin-top: 4px; font-size: 11px; color: #999; padding: 0 4px; word-break: break-all;"></div>
 </div>
 
 <!-- ===== 报告头部 ===== -->
@@ -2993,6 +2998,7 @@ document.addEventListener('DOMContentLoaded', () => {
   } else {
     setTimeout(() => autoRestoreFromCloud(), 100);
   }
+  updateBinIdDisplay();
 });
 
 // ============== localStorage 保存/加载/删除 ==============
@@ -3136,6 +3142,38 @@ function getCloudBinId() {
 }
 function saveCloudApiKey(key) { localStorage.setItem(CLOUD_API_KEY_STORAGE, key); }
 function saveCloudBinId(id) { localStorage.setItem(CLOUD_BIN_ID_STORAGE, id); }
+
+// 显示当前 Bin ID
+function updateBinIdDisplay() {
+  const el = document.getElementById('binIdDisplay');
+  if (!el) return;
+  const binId = getCloudBinId();
+  if (binId) {
+    el.innerHTML = '📌 当前 Bin: <code style="background:#f0f2f5; padding:1px 6px; border-radius:3px; font-size:11px;">' + binId + '</code>';
+  } else {
+    el.textContent = '📌 当前 Bin: 未设置';
+  }
+}
+
+// 恢复默认 Bin ID（用于新设备或 Bin ID 失效时重置）
+function resetToDefaultBinId() {
+  const defaultId = '6a041f62250b1311c34240a3';
+  const currentId = getCloudBinId();
+
+  if (currentId === defaultId) {
+    showToast('当前已是默认 Bin ID', 'info');
+    return;
+  }
+
+  // 清除旧的缓存 Bin ID，让代码使用默认值
+  localStorage.removeItem(CLOUD_BIN_ID_STORAGE);
+  setCloudStatus('🔄 已重置为默认 Bin ID: ' + defaultId);
+  showToast('已恢复默认 Bin ID，正在重新连接云端...', 'success');
+
+  // 立即尝试用新的默认 Bin ID 恢复数据
+  setTimeout(() => autoRestoreFromCloud(), 500);
+  updateBinIdDisplay();
+}
 
 // 默认值：硬编码到代码中，即使 localStorage 被清空也不影响
 // ⚠️ 第一次备份成功后会自动更新此值到文件中
