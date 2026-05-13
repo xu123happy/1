@@ -779,7 +779,7 @@
 <!-- ===== 顶部导航栏 ===== -->
 <nav class="top-nav">
   <div class="nav-brand">
-    <a href="12/index.html" style="color:#fff;text-decoration:none;font-size:18px;margin-right:4px;" title="返回首页">🏠</a>
+    <a href="./index.html" style="color:#fff;text-decoration:none;font-size:18px;margin-right:4px;" title="返回首页">🏠</a>
     <span class="nav-brand-icon">📊</span>
     <span>经管报表分析</span>
   </div>
@@ -800,11 +800,11 @@
       <span style="font-size:10px;">▾</span>
     </button>
     <div class="settings-dropdown" id="systemsSwitchDropdown" style="min-width:180px;">
-      <a class="dropdown-item" href="12/school-statistics.html" style="text-decoration:none;">
+      <a class="dropdown-item" href="./school-statistics.html" style="text-decoration:none;">
         <span>👥</span>
         <span>人数统计</span>
       </a>
-      <a class="dropdown-item" href="12/school-income-dashboard.html" style="text-decoration:none;">
+      <a class="dropdown-item" href="./school-income-dashboard.html" style="text-decoration:none;">
         <span>💰</span>
         <span>收入日报</span>
       </a>
@@ -942,7 +942,7 @@
 <div class="dashboard" id="section-dashboard">
   <div class="card full">
     <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
-      <span><span class="dot"></span>项目月收入趋势</span>
+      <span><span class="dot"></span>项目月收入趋势<span style="font-size:11px;color:#999;font-weight:400;margin-left:6px;">（单位：万元）</span></span>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <select id="trendProject" onchange="renderTrendChart()" style="background:#f7f8fa;border:1px solid #e5e6eb;border-radius:6px;padding:4px 10px;font-size:12px;color:#1d2129;cursor:pointer;outline:none;max-width:200px;">
           <option value="__all__">全部项目</option>
@@ -2124,7 +2124,7 @@ function renderTrendChart() {
           show: showLabel,
           position: 'top',
           fontSize: 10,
-          formatter: function(p) { return p.value > 0 ? '¥' + fmtWan(p.value) : ''; }
+          formatter: function(p) { return p.value > 0 ? fmtWan(p.value) : ''; }
         },
         itemStyle: { color: COLORS[idx % COLORS.length] }
       });
@@ -2165,7 +2165,7 @@ function renderTrendChart() {
         params.forEach(p => {
           html += '<div style="display:flex;align-items:center;gap:6px;">' +
             '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + p.color + ';"></span>' +
-            p.seriesName + ': <b>¥' + fmt(p.value) + '</b></div>';
+            p.seriesName + ': <b>' + fmtWan(p.value) + ' 万</b></div>';
         });
         return html;
       }
@@ -2180,7 +2180,10 @@ function renderTrendChart() {
     },
     grid: { left: 60, right: 20, top: 20, bottom: selectedProject === '__all__' && legendData.length > 8 ? 60 : 36 },
     xAxis: { type: 'category', data: xLabels, axisLabel: { fontSize: 11 }, boundaryGap: false },
-    yAxis: { type: 'value', axisLabel: { fontSize: 11, formatter: function(v) { return '¥' + fmtWan(v); } } },
+    yAxis: {
+      type: 'value',
+      axisLabel: { fontSize: 11, formatter: function(v) { return fmtWan(v); } }
+    },
     series: series
   }, true);
 }
