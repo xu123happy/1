@@ -1259,9 +1259,19 @@ document.addEventListener('click', function(event) {
 });
 
 // ============== 预计回本收入设置 ==============
-// 预计回本收入将按合同金额自动计算，不再使用本地存储
+const PAYBACK_SETTINGS_KEY = 'jingguan_payback_settings';
+
 function loadPaybackSettings() {
-  return {};
+  try {
+    const raw = localStorage.getItem(PAYBACK_SETTINGS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) { return {}; }
+}
+
+function savePaybackSettingsToStorage(settings) {
+  try {
+    localStorage.setItem(PAYBACK_SETTINGS_KEY, JSON.stringify(settings));
+  } catch (e) { /* ignore */ }
 }
 
 function openPaybackSetting() {
@@ -1295,6 +1305,8 @@ function savePaybackSettings() {
       settings[p.name] = value;
     }
   });
+  // 持久化到 localStorage
+  savePaybackSettingsToStorage(settings);
   showToast('预计回本收入设置已保存', 'success');
   closePaybackSetting();
   renderContractTable();
@@ -3052,7 +3064,8 @@ function saveToStorage() {
     data: DATA,
     allMonthsData: ALL_MONTHS_DATA,
     allDetailData: ALL_DETAIL_DATA,
-    contractSettings: loadContractSettings()
+    contractSettings: loadContractSettings(),
+    paybackSettings: loadPaybackSettings()
   };
 
   try {
@@ -3104,6 +3117,10 @@ function loadSavedItem(id) {
       // 恢复合同信息设置
       if (saveData.contractSettings && Object.keys(saveData.contractSettings).length > 0) {
         saveContractSettingsToStorage(saveData.contractSettings);
+      }
+      // 恢复预计回本收入设置
+      if (saveData.paybackSettings && Object.keys(saveData.paybackSettings).length > 0) {
+        savePaybackSettingsToStorage(saveData.paybackSettings);
       }
       isDataUpdated = true;
       document.getElementById('dataSourceBadge').className = 'data-source uploaded';
