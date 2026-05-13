@@ -1,0 +1,3670 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>经管报表分析 - 收入明细</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'PingFang SC', 'Microsoft YaHei', -apple-system, sans-serif; background: #f0f2f5; color: #1d2129; }
+  
+  /* Upload Section */
+  .upload-section {
+    background: #fff; margin: 20px 32px; border-radius: 12px; padding: 24px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+  }
+  .upload-header {
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;
+  }
+  .upload-title { font-size: 16px; font-weight: 600; color: #1d2129; display: flex; align-items: center; gap: 8px; }
+  .upload-area {
+    border: 2px dashed #d9d9d9; border-radius: 8px; padding: 32px; text-align: center;
+    transition: all 0.3s; cursor: pointer; background: #fafafa;
+  }
+  .upload-area:hover { border-color: #165dff; background: #f0f7ff; }
+  .upload-area.dragover { border-color: #165dff; background: #e8f7ff; }
+  .upload-icon { font-size: 48px; margin-bottom: 12px; }
+  .upload-text { font-size: 14px; color: #666; }
+  .upload-text strong { color: #165dff; }
+  .upload-hint { font-size: 12px; color: #999; margin-top: 8px; }
+  .upload-btn {
+    display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px;
+    background: linear-gradient(135deg, #165dff, #4080ff); color: #fff;
+    border: none; border-radius: 6px; font-size: 14px; cursor: pointer; margin-top: 12px;
+    transition: all 0.3s;
+  }
+  .upload-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(22,93,255,0.3); }
+  .file-input { display: none; }
+  
+  /* File Info */
+  .file-info {
+    display: flex; align-items: center; gap: 12px; margin-top: 16px; padding: 12px 16px;
+    background: #f7f8fa; border-radius: 8px;
+  }
+  .file-icon { font-size: 24px; }
+  .file-details { flex: 1; }
+  .file-name { font-size: 14px; font-weight: 500; color: #1d2129; }
+  .file-meta { font-size: 12px; color: #86909c; margin-top: 2px; }
+  .file-status { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+  .file-status.success { color: #00b42a; }
+  .file-status.loading { color: #165dff; }
+  .file-status.error { color: #d91a1a; }
+  
+  /* Parse Results */
+  .parse-results { margin-top: 20px; }
+  .result-tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .result-tab {
+    padding: 8px 16px; border-radius: 6px; font-size: 13px; cursor: pointer;
+    background: #f2f3f5; color: #666; transition: all 0.2s;
+  }
+  .result-tab:hover { background: #e5e6eb; }
+  .result-tab.active { background: #165dff; color: #fff; }
+  .result-sheet { display: none; }
+  .result-sheet.active { display: block; }
+  .result-preview { max-height: 300px; overflow: auto; }
+  .result-preview table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .result-preview th, .result-preview td {
+    padding: 8px 12px; border: 1px solid #e5e6eb; text-align: left;
+  }
+  .result-preview th { background: #f7f8fa; font-weight: 500; position: sticky; top: 0; }
+  
+  /* Update Button */
+  .update-actions { display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+  .btn-update {
+    padding: 10px 24px; border: none; border-radius: 6px; font-size: 14px;
+    cursor: pointer; transition: all 0.3s; display: flex; align-items: center; gap: 6px;
+  }
+  .btn-primary { background: linear-gradient(135deg, #165dff, #4080ff); color: #fff; }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(22,93,255,0.3); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .btn-secondary { background: #f2f3f5; color: #666; }
+  .btn-secondary:hover { background: #e5e6eb; }
+  
+  /* Data indicator */
+  .data-source { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 4px; font-size: 12px; }
+  .data-source.builtin { background: #e8f7ff; color: #165dff; }
+  .data-source.uploaded { background: #e8ffea; color: #00b42a; }
+  
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 20px; right: 20px; padding: 12px 20px; border-radius: 8px;
+    font-size: 14px; z-index: 1000; transform: translateY(100px); opacity: 0;
+    transition: all 0.3s;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.success { background: #00b42a; color: #fff; }
+  .toast.error { background: #d91a1a; color: #fff; }
+  .toast.info { background: #165dff; color: #fff; }
+  
+  .report-header {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    color: #fff; padding: 40px 48px 32px; position: relative; overflow: hidden;
+  }
+  .report-header::before {
+    content: ''; position: absolute; top: -50%; right: -10%; width: 400px; height: 400px;
+    background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, transparent 70%);
+    border-radius: 50%;
+  }
+  .report-header h1 { font-size: 28px; font-weight: 700; letter-spacing: 1px; }
+  .report-header .subtitle { font-size: 14px; color: rgba(255,255,255,0.65); margin-top: 8px; }
+
+  .kpi-bar {
+    display: flex; gap: 0; background: #fff; margin: -20px 32px 0; border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08); position: relative; z-index: 2; overflow: hidden;
+  }
+  .kpi-item {
+    flex: 1; padding: 24px 20px; text-align: center; position: relative;
+  }
+  .kpi-item:not(:last-child)::after {
+    content: ''; position: absolute; right: 0; top: 20%; height: 60%; width: 1px;
+    background: #e5e6eb;
+  }
+  .kpi-label { font-size: 13px; color: #86909c; margin-bottom: 8px; }
+  .kpi-value { font-size: 26px; font-weight: 700; color: #1d2129; transition: all 0.3s; }
+  .kpi-value.red { color: #d91a1a; }
+  .kpi-value.green { color: #00b42a; }
+  .kpi-value.blue { color: #3491fa; }
+  .kpi-value.updated { animation: pulse 0.5s; }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+  .kpi-unit { font-size: 14px; font-weight: 400; color: #86909c; margin-left: 2px; }
+
+  .dashboard { padding: 24px 32px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .card {
+    background: #fff; border-radius: 12px; padding: 24px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+  }
+  .card.full { grid-column: 1 / -1; }
+  .card-title {
+    font-size: 16px; font-weight: 600; color: #1d2129; margin-bottom: 4px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card-title .dot {
+    width: 4px; height: 16px; border-radius: 2px; background: #165dff;
+  }
+  .card-desc { font-size: 12px; color: #86909c; margin-bottom: 16px; }
+  .chart-box { width: 100%; height: 360px; }
+  .chart-box.tall { height: 420px; }
+
+  /* Table */
+  .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .data-table th {
+    text-align: left; padding: 10px 12px; background: #f7f8fa; color: #86909c;
+    font-weight: 500; border-bottom: 1px solid #e5e6eb; font-size: 12px;
+  }
+  .data-table td {
+    padding: 10px 12px; border-bottom: 1px solid #f2f3f5; color: #4e5969;
+  }
+  .data-table tr:hover td { background: #f7f8fa; }
+  .data-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .data-table .proj-name { font-weight: 500; color: #1d2129; }
+
+  /* Contract Table */
+  .contract-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .contract-table th {
+    text-align: center; padding: 10px 8px; background: #f7f8fa; color: #86909c;
+    font-weight: 500; border-bottom: 2px solid #e5e6eb; font-size: 12px;
+    white-space: nowrap; position: sticky; top: 0; z-index: 1;
+  }
+  .contract-table td {
+    padding: 9px 8px; border-bottom: 1px solid #f2f3f5; color: #4e5969;
+    text-align: center; white-space: nowrap;
+  }
+  .contract-table tr:hover td { background: #f7f8fa; }
+  .contract-table .proj-name { text-align: left; font-weight: 500; color: #1d2129; }
+  .contract-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .contract-table .warn { color: #d91a1a; font-weight: 600; }
+  .contract-table .safe { color: #00b42a; font-weight: 600; }
+  .contract-table .neutral { color: #f7ba1e; font-weight: 600; }
+
+  .progress-cell { display: flex; align-items: center; gap: 6px; justify-content: center; }
+  .progress-bar { width: 80px; height: 8px; border-radius: 4px; background: #f2f3f5; overflow: hidden; flex-shrink: 0; }
+  .progress-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
+  .progress-fill.green { background: linear-gradient(90deg, #00b42a, #34c759); }
+  .progress-fill.blue { background: linear-gradient(90deg, #165dff, #4080ff); }
+  .progress-fill.orange { background: linear-gradient(90deg, #ff7d00, #f7ba1e); }
+  .progress-fill.red { background: linear-gradient(90deg, #d91a1a, #f53f3f); }
+  .progress-text { font-size: 11px; color: #86909c; min-width: 36px; }
+
+  .placeholder-hint {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: #fff7e8; color: #ff7d00; padding: 2px 8px; border-radius: 4px;
+    font-size: 11px; margin-left: 6px; font-weight: 400;
+  }
+
+  .table-scroll { overflow-x: auto; max-height: 600px; overflow-y: auto; }
+
+  /* 列筛选面板 */
+  .col-filter-item { display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;color:#4e5969;cursor:pointer;white-space:nowrap; }
+  .col-filter-item:hover { color:#165dff; }
+  .col-filter-item input[type="checkbox"] { accent-color:#165dff;cursor:pointer; }
+  .col-filter-item label { cursor:pointer; }
+  .contract-table th.col-hidden, .contract-table td.col-hidden { display:none; }
+
+  /* 合计排除项面板 */
+  .exclude-panel { max-height: 320px; overflow-y: auto; }
+  .exclude-item { display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;color:#4e5969;cursor:pointer;white-space:nowrap; }
+  .exclude-item:hover { color:#165dff; }
+  .exclude-item input[type="checkbox"] { accent-color:#ff7d00;cursor:pointer; }
+  .exclude-item label { cursor:pointer; }
+  .exclude-item.excluded label { text-decoration:line-through;color:#c9cdd4; }
+  .contract-table tr.row-excluded td { color:#c9cdd4; text-decoration:line-through; }
+  .contract-table tr.row-excluded td.proj-name { color:#c9cdd4; }
+  .exclude-hint { font-size:11px;color:#86909c;padding:4px 0 8px;border-bottom:1px solid #f2f3f5;margin-bottom:6px; }
+
+  /* 行筛选面板 */
+  .rowfilter-panel { max-height: 320px; overflow-y: auto; }
+  .rowfilter-item { display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;color:#4e5969;cursor:pointer;white-space:nowrap; }
+  .rowfilter-item:hover { color:#165dff; }
+  .rowfilter-item input[type="checkbox"] { accent-color:#722ed1;cursor:pointer; }
+  .rowfilter-item label { cursor:pointer; }
+  .rowfilter-hint { font-size:11px;color:#86909c;padding:4px 0 8px;border-bottom:1px solid #f2f3f5;margin-bottom:6px; }
+  .contract-table tr.row-hidden { display:none; }
+
+  /* 全局项目筛选面板 */
+  .global-filter-panel { max-height: 340px; overflow-y: auto; }
+  .global-filter-hint { font-size:11px;color:#86909c;padding:4px 0 8px;border-bottom:1px solid #f2f3f5;margin-bottom:6px; }
+  .gf-item { display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;color:#4e5969;cursor:pointer;white-space:nowrap; }
+  .gf-item:hover { color:#165dff; }
+  .gf-item input[type="checkbox"] { accent-color:#165dff;cursor:pointer; }
+  .gf-item label { cursor:pointer; }
+  .gf-btn-bar { display:flex;gap:8px;margin-bottom:8px; }
+  .gf-btn { font-size:12px;padding:2px 10px;border-radius:4px;border:1px solid #e5e6eb;background:#f7f8fa;color:#4e5969;cursor:pointer; }
+  .gf-btn:hover { background:#e8f3ff;color:#165dff;border-color:#bedaff; }
+
+  .bar-cell { display: flex; align-items: center; gap: 8px; }
+  .mini-bar {
+    height: 6px; border-radius: 3px; background: #e8f3ff; flex: 1; overflow: hidden;
+  }
+  .mini-bar-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #165dff, #4080ff); }
+
+  .insight-section { padding: 0 32px 32px; }
+  .insight-card {
+    background: #fff; border-radius: 12px; padding: 24px 28px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+  }
+  .insight-card h3 {
+    font-size: 16px; font-weight: 600; margin-bottom: 16px; color: #1d2129;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .insight-list { list-style: none; }
+  .insight-list li {
+    padding: 8px 0; font-size: 14px; color: #4e5969; line-height: 1.7;
+    display: flex; gap: 8px;
+  }
+  .insight-list li::before { content: '•'; color: #165dff; font-weight: bold; flex-shrink: 0; }
+  .insight-tag {
+    display: inline-block; padding: 1px 8px; border-radius: 4px; font-size: 12px;
+    font-weight: 500; margin: 0 2px;
+  }
+  .insight-tag.up { background: #fff3f0; color: #d91a1a; }
+  .insight-tag.down { background: #e8ffea; color: #00b42a; }
+  .insight-tag.highlight { background: #e8f7ff; color: #165dff; }
+
+  .footer {
+    text-align: center; padding: 20px; font-size: 12px; color: #c9cdd4;
+  }
+
+  /* ===== 订单明细搜索 ===== */
+  .search-section {
+    background: #fff; margin: 20px 32px; border-radius: 12px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.05); padding: 24px;
+  }
+  .search-section .section-title {
+    font-size: 16px; font-weight: 600; color: #1d2129; display: flex; align-items: center; gap: 8px; margin-bottom: 16px;
+  }
+  .search-bar {
+    display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 16px;
+  }
+  .search-input {
+    padding: 8px 12px; border: 1px solid #e5e6eb; border-radius: 6px; font-size: 13px;
+    outline: none; transition: border-color 0.2s; font-family: inherit; min-width: 160px;
+  }
+  .search-input:focus { border-color: #165dff; box-shadow: 0 0 0 2px rgba(22,93,255,0.1); }
+  .search-select {
+    padding: 8px 12px; border: 1px solid #e5e6eb; border-radius: 6px; font-size: 13px;
+    outline: none; background: #fff; cursor: pointer; font-family: inherit;
+  }
+  .search-select:focus { border-color: #165dff; }
+  .search-input[type="month"] { cursor: pointer; }
+  .search-input[type="month"]::-webkit-calendar-picker-indicator { cursor: pointer; filter: opacity(0.5); }
+  .search-btn {
+    padding: 8px 20px; background: linear-gradient(135deg, #165dff, #4080ff); color: #fff;
+    border: none; border-radius: 6px; font-size: 13px; cursor: pointer; font-family: inherit;
+    display: flex; align-items: center; gap: 6px; transition: all 0.2s;
+  }
+  .search-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(22,93,255,0.3); }
+  .search-btn-reset {
+    padding: 8px 16px; background: #f2f3f5; color: #666; border: none; border-radius: 6px;
+    font-size: 13px; cursor: pointer; font-family: inherit; transition: all 0.2s;
+  }
+  .search-btn-reset:hover { background: #e5e6eb; }
+  .search-stats {
+    font-size: 12px; color: #86909c; margin-bottom: 12px;
+  }
+  .search-stats strong { color: #165dff; }
+  .search-result-table {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+  }
+  .search-result-table th {
+    background: #f7f8fa; padding: 10px 12px; text-align: left; font-weight: 500;
+    color: #4e5969; border-bottom: 2px solid #e5e6eb; position: sticky; top: 0; z-index: 1;
+  }
+  .search-result-table td {
+    padding: 9px 12px; border-bottom: 1px solid #f2f3f5; color: #1d2129;
+  }
+  .search-result-table tbody tr:hover { background: #f7f8fa; }
+  .search-result-table .amount-income { color: #d91a1a; font-weight: 500; }
+  .search-result-table .amount-expense { color: #00b42a; font-weight: 500; }
+  .search-result-table .amount-investment { color: #ff7d00; font-weight: 500; }
+  .search-result-scroll {
+    max-height: 500px; overflow-y: auto; overflow-x: auto;
+  }
+  .search-empty {
+    text-align: center; padding: 40px 20px; color: #c9cdd4; font-size: 14px;
+  }
+  .search-highlight { background: #fff3f0; padding: 1px 2px; border-radius: 2px; }
+  
+  /* Income Type Colors */
+  .income-tag {
+    display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;
+    background: #F6FC14; color: #7c5900; border: 1px solid #d4a800;
+  }
+  .expense-tag {
+    display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;
+    background: #FF1717; color: #fff;
+  }
+  .exclude-tag {
+    display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;
+    background: #A1F4AA; color: #389e0d; border: 1px solid #52c41a;
+  }
+  .row-income { background: rgba(246, 252, 20, 0.15); }
+  .row-expense { background: rgba(255, 23, 23, 0.1); }
+  .row-exclude { background: rgba(161, 244, 170, 0.2); }
+  .row-income:hover td, .row-expense:hover td, .row-exclude:hover td {
+    background: inherit;
+  }
+  
+  /* Settlement Table Colors */
+  .settlement-row { background: #f0f7ff; font-weight: 500; }
+  .settlement-row td { border-top: 2px solid #165dff; }
+  .income-cell { color: #00b42a; font-weight: 500; }
+  .expense-cell { color: #d91a1a; font-weight: 500; }
+  .net-cell { font-weight: 700; }
+  .net-positive { color: #00b42a; }
+  .net-negative { color: #d91a1a; }
+  
+  /* Color Legend */
+  .color-legend {
+    display: flex; gap: 16px; margin-top: 12px; flex-wrap: wrap;
+  }
+  .legend-item {
+    display: flex; align-items: center; gap: 6px; font-size: 12px; color: #666;
+  }
+  .legend-dot {
+    width: 12px; height: 12px; border-radius: 2px;
+  }
+  .legend-dot.income { background: #F6FC14; border: 1px solid #d4a800; }
+  .legend-dot.expense { background: #FF1717; }
+  .legend-dot.exclude { background: #A1F4AA; border: 1px solid #52c41a; }
+
+  /* ===== 顶部导航栏 ===== */
+  .top-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    color: #fff;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 56px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+    z-index: 1000;
+  }
+  .nav-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 18px;
+    font-weight: 600;
+  }
+  .nav-brand-icon {
+    font-size: 24px;
+  }
+  .nav-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  /* 导航栏数据期间 */
+  .nav-period {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 13px;
+    color: rgba(255,255,255,0.85);
+  }
+  .nav-period input[type="month"] {
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 13px;
+    cursor: pointer;
+    outline: none;
+    font-family: inherit;
+  }
+  .nav-period input[type="month"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    cursor: pointer;
+  }
+  /* 导航栏筛选项目按钮 */
+  .nav-filter-btn {
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.2);
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .nav-filter-btn:hover {
+    background: rgba(255,255,255,0.25);
+    border-color: rgba(255,255,255,0.3);
+  }
+  .nav-btn {
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.2);
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .nav-btn:hover {
+    background: rgba(255,255,255,0.25);
+    border-color: rgba(255,255,255,0.3);
+  }
+
+
+  /* ===== 调整原有元素位置 ===== */
+  body { padding-top: 56px; }
+  .report-header { padding-top: 24px; }
+  
+  /* ===== 设置下拉菜单 ===== */
+  .nav-actions { position: relative; }
+  .settings-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 8px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    min-width: 200px;
+    z-index: 1001;
+    display: none;
+    overflow: hidden;
+  }
+  .settings-dropdown.show { display: block; }
+  .dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    color: #1d2129;
+    text-decoration: none;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+  }
+  .dropdown-item:hover { background: #f7f8fa; }
+  .dropdown-item:active { background: #e5e6eb; }
+  .dropdown-divider { height: 1px; background: #e5e6eb; margin: 4px 0; }
+  
+  /* ===== 设置模态框 ===== */
+  .modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 2000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: #fff;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 700px;
+    max-height: 80vh;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  }
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid #e5e6eb;
+  }
+  .modal-title { font-size: 18px; font-weight: 600; color: #1d2129; }
+  .modal-close {
+    background: none; border: none; font-size: 24px; cursor: pointer;
+    color: #86909c; padding: 4px; border-radius: 4px;
+  }
+  .modal-close:hover { background: #f2f3f5; color: #1d2129; }
+  .modal-body { padding: 24px; overflow-y: auto; max-height: calc(80vh - 140px); }
+  .modal-footer {
+    display: flex; gap: 12px; justify-content: flex-end;
+    padding: 16px 24px; border-top: 1px solid #e5e6eb;
+  }
+  
+  /* 编辑表格 */
+  .edit-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .edit-table th {
+    padding: 12px 16px; text-align: left; background: #f7f8fa;
+    border-bottom: 2px solid #e5e6eb; font-weight: 600; color: #1d2129;
+    position: sticky; top: 0; z-index: 1;
+  }
+  .edit-table td {
+    padding: 10px 16px; border-bottom: 1px solid #f2f3f5;
+  }
+  .edit-table tr:hover td { background: #fafafa; }
+  .edit-input {
+    width: 120px; padding: 6px 10px; border: 1px solid #d9d9d9;
+    border-radius: 4px; font-size: 14px; text-align: right;
+  }
+  .edit-input:focus { border-color: #165dff; outline: none; box-shadow: 0 0 0 2px rgba(22,93,255,0.1); }
+  .btn-save {
+    padding: 8px 20px; background: #165dff; color: #fff;
+    border: none; border-radius: 6px; font-size: 14px; cursor: pointer;
+  }
+  .btn-save:hover { background: #4080ff; }
+  .btn-cancel {
+    padding: 8px 20px; background: #f2f3f5; color: #666;
+    border: none; border-radius: 6px; font-size: 14px; cursor: pointer;
+  }
+  .btn-cancel:hover { background: #e5e6eb; }
+  
+  /* ===== 数据保存区域 ===== */
+  .data-save-bar {
+    background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%);
+    margin: 20px 32px;
+    padding: 16px 24px;
+    border-radius: 12px;
+    border: 2px solid #81c784;
+  }
+  .save-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .save-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #2e7d32;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .save-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .save-btn {
+    background: #4caf50;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .save-btn:hover {
+    background: #388e3c;
+    transform: translateY(-1px);
+  }
+  .load-btn {
+    background: #2196f3;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .load-btn:hover {
+    background: #1976d2;
+    transform: translateY(-1px);
+  }
+  .save-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .save-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid #c8e6c9;
+  }
+  .save-item-name {
+    font-size: 13px;
+    color: #1d2129;
+  }
+  .save-item-date {
+    font-size: 11px;
+    color: #86909c;
+  }
+  .save-item-load {
+    background: #e3f2fd;
+    color: #1565c0;
+    border: none;
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .save-item-load:hover {
+    background: #bbdefb;
+  }
+  .save-item-delete {
+    background: #ffebee;
+    color: #c62828;
+    border: none;
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .save-item-delete:hover {
+    background: #ffcdd2;
+  }
+  .empty-saves {
+    color: #86909c;
+    font-size: 13px;
+    padding: 12px;
+    text-align: center;
+  }
+  .hidden-input { display: none; }
+
+  /* ===== 右侧悬浮导航栏 ===== */
+  .floating-nav {
+    position: fixed;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%) translateX(calc(100% - 32px));
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    background: rgba(255, 255, 255, 0.3);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-radius: 12px 0 0 12px;
+    padding: 10px 0;
+    border: 1px solid rgba(22, 93, 255, 0.15);
+    border-right: none;
+    box-shadow: -4px 4px 20px rgba(0, 0, 0, 0.1);
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+  }
+  .floating-nav:hover {
+    transform: translateY(-50%) translateX(0);
+  }
+  .floating-nav-item {
+    width: 100px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    background: transparent;
+    color: #4e5969;
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.25s ease;
+    cursor: pointer;
+    margin: 2px 8px;
+    white-space: nowrap;
+    text-align: center;
+    line-height: 1.2;
+    user-select: none;
+  }
+  .floating-nav-item:hover {
+    background: rgba(22, 93, 255, 0.85);
+    color: #fff;
+    transform: scale(1.02);
+    box-shadow: 0 4px 12px rgba(22, 93, 255, 0.3);
+  }
+  .floating-nav-item.active {
+    background: rgba(22, 93, 255, 0.12);
+    color: #165dff;
+    font-weight: 600;
+  }
+  .floating-nav-divider {
+    width: 60px;
+    height: 1px;
+    background: rgba(22, 93, 255, 0.12);
+    margin: 2px auto;
+  }
+</style>
+</head>
+<body>
+
+<!-- 右侧悬浮导航栏 -->
+<nav class="floating-nav" id="floatingNav">
+  <span class="floating-nav-item" data-target="section-kpi" onclick="scrollToSection('section-kpi')">📊 指标</span>
+  <div class="floating-nav-divider"></div>
+  <span class="floating-nav-item" data-target="section-dashboard" onclick="scrollToSection('section-dashboard')">📈 趋势</span>
+  <div class="floating-nav-divider"></div>
+  <span class="floating-nav-item" data-target="chart-ranking" onclick="scrollToSection('chart-ranking')">🏆 Top10</span>
+  <div class="floating-nav-divider"></div>
+  <span class="floating-nav-item" data-target="projectTable" onclick="scrollToSection('projectTable')">📋 明细表</span>
+  <div class="floating-nav-divider"></div>
+  <span class="floating-nav-item" data-target="contractTable" onclick="scrollToSection('contractTable')">📑 合同表</span>
+  <div class="floating-nav-divider"></div>
+  <span class="floating-nav-item" data-target="searchSection" onclick="scrollToSection('searchSection')">🔍 搜索</span>
+  <div class="floating-nav-divider"></div>
+  <span class="floating-nav-item" data-target="section-insight" onclick="scrollToSection('section-insight')">💡 洞察</span>
+  <div class="floating-nav-divider"></div>
+  <span class="floating-nav-item" onclick="window.scrollTo({top:0,behavior:'smooth'})">⬆ 顶部</span>
+</nav>
+
+<!-- ===== 顶部导航栏 ===== -->
+<nav class="top-nav">
+  <div class="nav-brand">
+    <a href="12/index.html" style="color:#fff;text-decoration:none;font-size:18px;margin-right:4px;" title="返回首页">🏠</a>
+    <span class="nav-brand-icon">📊</span>
+    <span>经管报表分析</span>
+  </div>
+  <div class="nav-actions">
+    <div class="nav-period">
+      <span>📅</span>
+      <input type="month" id="monthSelect" onchange="onMonthChange()" value="2026-04">
+    </div>
+    <div style="position:relative;">
+      <button class="nav-filter-btn" id="globalFilterBtn" onclick="toggleGlobalFilterPanel()">
+        <span id="globalFilterBadge" style="display:none;background:#ff7d00;color:#fff;border-radius:8px;font-size:10px;padding:0 5px;line-height:16px;">!</span> 筛选项目 ▾
+      </button>
+      <div id="globalFilterPanel" style="display:none;position:absolute;right:0;top:36px;background:#fff;border:1px solid #e5e6eb;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.12);padding:12px 16px;z-index:100;min-width:220px;"></div>
+    </div>
+    <button class="nav-btn" onclick="toggleSystemsSwitch()" style="position:relative;">
+      <span>🔀</span>
+      <span>系统切换</span>
+      <span style="font-size:10px;">▾</span>
+    </button>
+    <div class="settings-dropdown" id="systemsSwitchDropdown" style="min-width:180px;">
+      <a class="dropdown-item" href="12/school-statistics.html" style="text-decoration:none;">
+        <span>👥</span>
+        <span>人数统计</span>
+      </a>
+      <a class="dropdown-item" href="12/school-income-dashboard.html" style="text-decoration:none;">
+        <span>💰</span>
+        <span>收入日报</span>
+      </a>
+      <div class="dropdown-divider"></div>
+      <a class="dropdown-item" style="text-decoration:none;color:#165dff;font-weight:500;cursor:default;">
+        <span>📊</span>
+        <span>经管报表（当前）</span>
+      </a>
+    </div>
+    <button class="nav-btn" onclick="toggleSettingsMenu()">
+      <span>⚙️</span>
+      <span>设置</span>
+    </button>
+    <div class="settings-dropdown" id="settingsDropdown">
+      <button class="dropdown-item" onclick="openContractSetting()">
+        <span>📋</span>
+        <span>合同信息设置</span>
+      </button>
+      <button class="dropdown-item" onclick="openPaybackSetting()">
+        <span>💰</span>
+        <span>修改预计回本收入</span>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<!-- ===== 上传区域 ===== -->
+<div class="upload-section">
+  <div class="upload-header">
+    <div class="upload-title">
+      <span>📤</span>
+      <span>上传数据文件</span>
+      <span class="data-source builtin" id="dataSourceBadge">📦 待上传数据</span>
+    </div>
+  </div>
+  <div class="upload-area" id="uploadArea">
+    <div class="upload-icon">📁</div>
+    <div class="upload-text">拖拽 Excel 文件到此处，或 <strong>点击选择文件</strong></div>
+    <div class="upload-hint">支持 .xlsx, .xls 格式</div>
+    <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+      <span>选择文件</span>
+    </button>
+    <input type="file" class="file-input" id="fileInput" accept=".xlsx,.xls">
+  </div>
+  <div class="file-info" id="fileInfo" style="display:none;">
+    <div class="file-icon">📄</div>
+    <div class="file-details">
+      <div class="file-name" id="fileName"></div>
+      <div class="file-meta" id="fileMeta"></div>
+    </div>
+    <div class="file-status success" id="fileStatus"></div>
+  </div>
+  <div class="parse-results" id="parseResults" style="display:none;">
+    <div class="result-tabs" id="resultTabs"></div>
+    <div class="result-shees" id="resultSheets"></div>
+  </div>
+  <div class="update-actions">
+    <button class="btn-update btn-primary" id="btnUpdate" onclick="updateReport()">
+      <span>🔄</span>
+      <span>更新报表</span>
+    </button>
+    <button class="btn-update btn-secondary" onclick="clearFile()">
+      <span>🗑️</span>
+      <span>清除</span>
+    </button>
+  </div>
+</div>
+
+<!-- ===== 数据保存区域 ===== -->
+<div class="data-save-bar" id="dataSaveBar">
+  <div class="save-header">
+    <div class="save-title">
+      <span>💾</span>
+      <span>本地存储</span>
+    </div>
+    <div class="save-actions">
+      <button class="save-btn" onclick="saveToStorage()">
+        <span>💾</span>
+        <span>保存数据</span>
+      </button>
+      <button class="save-btn" onclick="backupToCloud()" id="cloudBackupBtn" style="background: linear-gradient(135deg, #7c3aed, #a78bfa);">
+        <span>☁️</span>
+        <span>备份到云端</span>
+      </button>
+      <button class="load-btn" onclick="restoreFromCloud()" id="cloudRestoreBtn">
+        <span>⬇️</span>
+        <span>从云端恢复</span>
+      </button>
+      <button class="save-btn" onclick="showClearCloudConfirm()" id="cloudClearBtn" style="background: linear-gradient(135deg, #d91a1a, #f53f3f);">
+        <span>🗑️</span>
+        <span>清除云端数据</span>
+      </button>
+    </div>
+  </div>
+  <div class="save-list" id="saveList"></div>
+  <div id="cloudStatus" style="margin-top: 8px; font-size: 12px; color: #666; padding: 0 4px;"></div>
+</div>
+
+<!-- ===== 报告头部 ===== -->
+<header class="report-header">
+  <h1>📊 经管报表分析</h1>
+  <p class="subtitle" id="reportSubtitle">收入明细汇总</p>
+</header>
+
+<!-- ===== KPI指标栏 ===== -->
+<div class="kpi-bar" id="section-kpi">
+  <div class="kpi-item">
+    <div class="kpi-label" id="kpiLabel-total">4月净收入</div>
+    <div class="kpi-value" id="kpi-total">¥0<span class="kpi-unit">万</span></div>
+  </div>
+  <div class="kpi-item">
+    <div class="kpi-label">高校类收入</div>
+    <div class="kpi-value blue" id="kpi-uni">¥0<span class="kpi-unit">万</span></div>
+  </div>
+  <div class="kpi-item">
+    <div class="kpi-label">公寓类收入</div>
+    <div class="kpi-value green" id="kpi-apt">¥0<span class="kpi-unit">万</span></div>
+  </div>
+  <div class="kpi-item">
+    <div class="kpi-label">项目数量</div>
+    <div class="kpi-value" id="kpi-count">0<span class="kpi-unit">个</span></div>
+  </div>
+  <div class="kpi-item">
+    <div class="kpi-label">日均收入</div>
+    <div class="kpi-value blue" id="kpi-daily">¥0<span class="kpi-unit">万</span></div>
+  </div>
+</div>
+
+<!-- ===== 图表仪表盘 ===== -->
+<div class="dashboard" id="section-dashboard">
+  <div class="card full">
+    <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+      <span><span class="dot"></span>项目月收入趋势</span>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <select id="trendProject" onchange="renderTrendChart()" style="background:#f7f8fa;border:1px solid #e5e6eb;border-radius:6px;padding:4px 10px;font-size:12px;color:#1d2129;cursor:pointer;outline:none;max-width:200px;">
+          <option value="__all__">全部项目</option>
+        </select>
+        <span style="font-size:12px;color:#86909c;">月份区间</span>
+        <input type="month" id="trendStart" onchange="renderTrendChart()" style="background:#f7f8fa;border:1px solid #e5e6eb;border-radius:6px;padding:4px 8px;font-size:12px;color:#1d2129;cursor:pointer;outline:none;">
+        <span style="font-size:12px;color:#86909c;">至</span>
+        <input type="month" id="trendEnd" onchange="renderTrendChart()" style="background:#f7f8fa;border:1px solid #e5e6eb;border-radius:6px;padding:4px 8px;font-size:12px;color:#1d2129;cursor:pointer;outline:none;">
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:#4e5969;cursor:pointer;user-select:none;">
+          <input type="checkbox" id="trendLabel" onchange="renderTrendChart()" checked style="accent-color:#165dff;cursor:pointer;"> 数字标注
+        </label>
+      </div>
+    </div>
+    <div class="card-desc">每个项目每月收入变化折线图，可筛选项目和月份区间</div>
+    <div class="chart-box tall" id="chart-trend" style="height:400px;"></div>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="dot"></span>项目收入 Top 10</div>
+    <div class="card-desc">按净收入排序，展示收入与支出对比</div>
+    <div class="chart-box" id="chart-ranking"></div>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="dot"></span>收支构成</div>
+    <div class="card-desc">收入 vs 支出</div>
+    <div class="chart-box" id="chart-type"></div>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="dot"></span>类别分布</div>
+    <div class="card-desc">高校 / 公寓 / 其他</div>
+    <div class="chart-box" id="chart-category"></div>
+  </div>
+<div class="card full">
+    <div class="card-title"><span class="dot"></span>项目收入明细表</div>
+    <div class="card-desc">所有项目收支明细</div>
+    <div class="table-scroll">
+      <table class="data-table" id="projectTable">
+        <thead>
+          <tr>
+            <th>序号</th>
+            <th>项目名称</th>
+            <th>类型</th>
+            <th>类别</th>
+            <th>收入</th>
+            <th>支出</th>
+            <th>净收入</th>
+            <th>占比</th>
+            <th>收入占比</th>
+          </tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </div>
+    <div class="color-legend">
+      <div class="legend-item"><span class="legend-dot income"></span>收入</div>
+      <div class="legend-item"><span class="legend-dot expense"></span>支出</div>
+      <div class="legend-item"><span class="legend-dot exclude"></span>排除</div>
+    </div>
+  </div>
+  <div class="card full">
+    <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;">
+      <span><span class="dot"></span>合同运营分析表</span>
+      <div style="position:relative;display:flex;gap:8px;">
+        <button onclick="exportContractXLSX()" style="background:#e8f7ff;border:1px solid #bedaff;border-radius:6px;padding:4px 12px;font-size:12px;color:#165dff;cursor:pointer;display:flex;align-items:center;gap:4px;">📥 导出XLSX</button>
+        <button onclick="exportContractPNG()" style="background:#e8ffea;border:1px solid #b9f0c2;border-radius:6px;padding:4px 12px;font-size:12px;color:#00b42a;cursor:pointer;display:flex;align-items:center;gap:4px;">🖼 导出PNG</button>
+        <button id="colFilterBtn" onclick="toggleColFilter()" style="background:#f2f3f5;border:1px solid #e5e6eb;border-radius:6px;padding:4px 12px;font-size:12px;color:#4e5969;cursor:pointer;display:flex;align-items:center;gap:4px;">筛选列 ▾</button>
+        <button id="rowFilterBtn" onclick="toggleRowFilterPanel()" style="background:#f5e8ff;border:1px solid #d3adf7;border-radius:6px;padding:4px 12px;font-size:12px;color:#722ed1;cursor:pointer;display:flex;align-items:center;gap:4px;">筛选行 ▾</button>
+        <button id="excludeBtn" onclick="toggleExcludePanel()" style="background:#fff7e8;border:1px solid #ffe4ba;border-radius:6px;padding:4px 12px;font-size:12px;color:#ff7d00;cursor:pointer;display:flex;align-items:center;gap:4px;">排除合计 ▾</button>
+        <div id="colFilterPanel" style="display:none;position:absolute;right:0;top:32px;background:#fff;border:1px solid #e5e6eb;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.12);padding:12px 16px;z-index:100;min-width:180px;">
+        </div>
+        <div id="rowFilterPanel" style="display:none;position:absolute;right:0;top:32px;background:#fff;border:1px solid #e5e6eb;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.12);padding:12px 16px;z-index:100;min-width:220px;">
+        </div>
+        <div id="excludePanel" style="display:none;position:absolute;right:0;top:32px;background:#fff;border:1px solid #e5e6eb;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.12);padding:12px 16px;z-index:100;min-width:220px;">
+        </div>
+      </div>
+    </div>
+    <div class="card-desc">按回本状态排序</div>
+    <div class="table-scroll">
+      <table class="contract-table" id="contractTable">
+        <thead>
+          <tr>
+            <th data-col="idx">序号</th>
+            <th data-col="name">项目名称</th>
+            <th data-col="cat">类别</th>
+            <th data-col="contract">合同时间</th>
+            <th data-col="share">股份占比</th>
+            <th data-col="years">合同年限</th>
+            <th data-col="operated">已运营</th>
+            <th data-col="progress">运营进度</th>
+            <th data-col="income" id="th-month-income">当月收入</th>
+            <th data-col="expense" id="th-month-expense">当月支出</th>
+            <th data-col="total" id="th-month-total">当月总计</th>
+            <th data-col="cumulative">至今累计</th>
+            <th data-col="invest">投入支出</th>
+            <th data-col="cumInvest">至今投入支出</th>
+            <th data-col="settlement">最终结算</th>
+            <th data-col="payback">预计回本收入(月)</th>
+            <th data-col="status">回本状态</th>
+          </tr>
+        </thead>
+        <tbody id="contract-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 订单明细搜索 ===== -->
+<div class="search-section" id="searchSection">
+  <div class="section-title">🔍 订单明细搜索</div>
+  <div class="search-bar">
+    <input type="text" class="search-input" id="searchProject" placeholder="项目关键词" onkeydown="if(event.key==='Enter')searchDetail()">
+    <input type="text" class="search-input" id="searchRemark" placeholder="备注/摘要关键词" onkeydown="if(event.key==='Enter')searchDetail()">
+    <input type="month" class="search-input" id="searchMonth" placeholder="选择月份" style="min-width:160px;">
+    <select class="search-select" id="searchType">
+      <option value="">全部类型</option>
+      <option value="income">收入</option>
+      <option value="expense">支出</option>
+      <option value="investment">投入</option>
+    </select>
+    <button class="search-btn" onclick="searchDetail()">🔍 搜索</button>
+    <button class="search-btn-reset" onclick="resetSearch()">重置</button>
+  </div>
+  <div class="search-stats" id="searchStats">输入条件后点击搜索</div>
+  <div class="search-result-scroll" id="searchResultScroll">
+    <div class="search-empty" id="searchEmpty">暂无搜索结果，请输入条件后搜索</div>
+    <table class="search-result-table" id="searchResultTable" style="display:none;">
+      <thead>
+        <tr>
+          <th>日期</th>
+          <th>项目</th>
+          <th>类型</th>
+          <th>金额(元)</th>
+          <th>摘要</th>
+          <th>备注</th>
+        </tr>
+      </thead>
+      <tbody id="searchResultBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ===== 数据洞察 ===== -->
+<div class="insight-section" id="section-insight">
+  <div class="insight-card">
+    <h3>📈 数据洞察</h3>
+    <ul class="insight-list" id="insight-list">
+      <li>暂无数据，请上传Excel文件</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ===== 底部 ===== -->
+<footer class="footer">
+  <p>经管报表分析系统 v2.0 | 数据来源：收入明细.xlsx</p>
+</footer>
+
+<!-- ===== Toast提示 ===== -->
+<div class="toast" id="toast"></div>
+
+<!-- ===== 设置模态框 ===== -->
+<div class="modal-overlay" id="paybackModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="modal-title">💰 修改预计回本收入</h2>
+      <button class="modal-close" onclick="closePaybackSetting()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p style="margin-bottom: 16px; color: #666;">设置各项目的月均预计回本收入。如果不设置，将按合同金额自动计算。</p>
+      <table class="edit-table">
+        <thead>
+          <tr>
+            <th>序号</th>
+            <th>项目名称</th>
+            <th>预计回本收入(元/月)</th>
+          </tr>
+        </thead>
+        <tbody id="payback-edit-body"></tbody>
+      </table>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closePaybackSetting()">取消</button>
+      <button class="btn-save" onclick="savePaybackSettings()">保存设置</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 合同信息设置模态框 ===== -->
+<div class="modal-overlay" id="contractSettingModal">
+  <div class="modal" style="max-width:900px;">
+    <div class="modal-header">
+      <h2 class="modal-title">📋 合同信息设置</h2>
+      <button class="modal-close" onclick="closeContractSetting()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p style="margin-bottom: 16px; color: #666;">设置各项目的合同时间、股份占比、合同年限和预计回本收入。保存后将更新合同运营分析表。</p>
+      <table class="edit-table">
+        <thead>
+          <tr>
+            <th>序号</th>
+            <th>项目名称</th>
+            <th>合同时间</th>
+            <th>股份占比(%)</th>
+            <th>合同年限(月)</th>
+            <th>预计回本收入(元/月)</th>
+          </tr>
+        </thead>
+        <tbody id="contract-edit-body"></tbody>
+      </table>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeContractSetting()">取消</button>
+      <button class="btn-save" onclick="saveContractSettings()">保存设置</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 清除云端数据二步确认模态框 ===== -->
+<div class="modal-overlay" id="clearCloudModal">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-header">
+      <h2 class="modal-title">🗑️ 清除云端数据</h2>
+      <button class="modal-close" onclick="closeClearCloudModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div style="text-align:center; margin-bottom:20px;">
+        <div style="font-size:48px; margin-bottom:12px;">⚠️</div>
+        <p style="font-size:16px; font-weight:600; color:#d91a1a; margin-bottom:8px;">此操作不可撤销！</p>
+        <p style="font-size:14px; color:#666; line-height:1.6;">清除后，云端 JSONBin 中的所有备份数据将被永久删除，无法恢复。<br>本地保存的数据不受影响。</p>
+      </div>
+      <div style="background:#fff7e6; border:1px solid #ff7d00; border-radius:8px; padding:16px; margin-bottom:16px;">
+        <p style="font-size:13px; color:#874d00; margin:0 0 8px 0; font-weight:500;">请在下方输入框中输入 <code style="background:#fff; padding:2px 6px; border-radius:4px; font-weight:600;">我确定删除云端数据</code> 以确认操作：</p>
+        <input type="text" id="clearCloudConfirmInput" placeholder="请输入确认文本" autocomplete="off"
+          style="width:100%; padding:10px 12px; border:1px solid #e5e6eb; border-radius:6px; font-size:14px; outline:none; transition:border-color 0.2s;"
+          oninput="onClearCloudInput()" onfocus="this.style.borderColor='#ff7d00'" onblur="this.style.borderColor='#e5e6eb'">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeClearCloudModal()">取消</button>
+      <button class="btn-save" id="clearCloudConfirmBtn" onclick="confirmClearCloud()" disabled
+        style="background:#ccc; cursor:not-allowed;">确认删除</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============== 月份选择器 ==============
+function getSelectedMonth() {
+  const val = document.getElementById('monthSelect').value; // "YYYY-MM"
+  return parseInt(val.split('-')[1]);
+}
+
+function getSelectedYear() {
+  const val = document.getElementById('monthSelect').value; // "YYYY-MM"
+  return parseInt(val.split('-')[0]);
+}
+
+function getSelectedMonthKey() {
+  return document.getElementById('monthSelect').value; // "YYYY-MM"
+}
+
+function onMonthChange() {
+  const y = getSelectedYear();
+  const m = getSelectedMonth();
+  const daysInMonth = new Date(y, m, 0).getDate();
+  // 更新副标题
+  document.getElementById('reportSubtitle').textContent = y + '年' + m + '月收入明细汇总';
+  // 更新页面标题
+  document.title = '经管报表分析 - ' + y + '年' + m + '月收入明细';
+  // 更新KPI标签
+  document.getElementById('kpiLabel-total').textContent = m + '月净收入';
+// 如果已上传数据，重新提取并渲染（按新月份筛选）
+  if (parsedData) {
+    updateReport();
+  } else if (Object.keys(ALL_MONTHS_DATA).length > 0) {
+    // 没有原始Excel但有多月累计数据，从 ALL_MONTHS_DATA 中加载对应月份
+    loadMonthFromAllData(m);
+  } else {
+    // 无上传数据时仅更新日均收入和图表
+    const income = DATA.summary.project_income || 0;
+    document.getElementById('kpi-daily').innerHTML = '¥' + fmtWan(income / daysInMonth) + '<span class="kpi-unit">万</span>';
+    renderCharts();
+  }
+}
+
+function getMonthDays(m) {
+  return new Date(getSelectedYear(), m, 0).getDate();
+}
+
+// ============== 设置下拉菜单 ==============
+function toggleSettingsMenu() {
+  const dropdown = document.getElementById('settingsDropdown');
+  dropdown.classList.toggle('show');
+  // 关闭系统切换
+  document.getElementById('systemsSwitchDropdown').classList.remove('show');
+}
+
+function toggleSystemsSwitch() {
+  const dropdown = document.getElementById('systemsSwitchDropdown');
+  dropdown.classList.toggle('show');
+  // 关闭设置
+  document.getElementById('settingsDropdown').classList.remove('show');
+}
+
+// 点击其他地方关闭下拉菜单
+document.addEventListener('click', function(event) {
+  const settingsDropdown = document.getElementById('settingsDropdown');
+  const systemsDropdown = document.getElementById('systemsSwitchDropdown');
+  const btn = event.target.closest('.nav-btn');
+  if (!btn) {
+    if (settingsDropdown.classList.contains('show')) settingsDropdown.classList.remove('show');
+    if (systemsDropdown.classList.contains('show')) systemsDropdown.classList.remove('show');
+  }
+});
+
+// ============== 预计回本收入设置 ==============
+// 预计回本收入将按合同金额自动计算，不再使用本地存储
+function loadPaybackSettings() {
+  return {};
+}
+
+function openPaybackSetting() {
+  document.getElementById('settingsDropdown').classList.remove('show');
+  const settings = loadPaybackSettings();
+  const tbody = document.getElementById('payback-edit-body');
+  tbody.innerHTML = '';
+  const projects = DATA.proj_ranking || [];
+  if (projects.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:40px;color:#999;">暂无项目数据，请先上传Excel文件</td></tr>';
+  } else {
+    projects.forEach((p, idx) => {
+      const currentValue = settings[p.name] || '';
+      tbody.innerHTML += '<tr><td>' + (idx + 1) + '</td><td class="proj-name">' + p.name + '</td><td><input type="number" class="edit-input" id="payback-' + idx + '" value="' + currentValue + '" placeholder="自动计算" step="0.01"></td></tr>';
+    });
+  }
+  document.getElementById('paybackModal').classList.add('show');
+}
+
+function closePaybackSetting() {
+  document.getElementById('paybackModal').classList.remove('show');
+}
+
+function savePaybackSettings() {
+  const settings = {};
+  const projects = DATA.proj_ranking || [];
+  projects.forEach((p, idx) => {
+    const input = document.getElementById('payback-' + idx);
+    const value = parseFloat(input.value);
+    if (!isNaN(value) && value > 0) {
+      settings[p.name] = value;
+    }
+  });
+  showToast('预计回本收入设置已保存', 'success');
+  closePaybackSetting();
+  renderContractTable();
+}
+
+// ============== 合同信息设置 ==============
+const CONTRACT_SETTINGS_KEY = 'contractSettings_v1';
+
+function loadContractSettings() {
+  try {
+    const raw = localStorage.getItem(CONTRACT_SETTINGS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) { return {}; }
+}
+
+function saveContractSettingsToStorage(settings) {
+  localStorage.setItem(CONTRACT_SETTINGS_KEY, JSON.stringify(settings));
+}
+
+function openContractSetting() {
+  document.getElementById('settingsDropdown').classList.remove('show');
+  const settings = loadContractSettings();
+  const tbody = document.getElementById('contract-edit-body');
+  tbody.innerHTML = '';
+  const projects = DATA.proj_ranking || [];
+  if (projects.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:#999;">暂无项目数据，请先上传Excel文件</td></tr>';
+  } else {
+    projects.forEach((p, idx) => {
+      const s = settings[p.name] || {};
+      const contractStart = s.contract_start || '2024-01';
+      const sharePct = s.share_pct || '';
+      const contractMonths = s.contract_months || '';
+      const monthlyPayback = s.monthly_payback || '';
+      tbody.innerHTML += '<tr>' +
+        '<td>' + (idx + 1) + '</td>' +
+        '<td class="proj-name">' + p.name + '</td>' +
+        '<td><input type="month" class="edit-input" style="width:140px;" id="cs-start-' + idx + '" value="' + contractStart + '" placeholder="2024-01"></td>' +
+        '<td><input type="number" class="edit-input" style="width:80px;" id="cs-share-' + idx + '" value="' + sharePct + '" placeholder="80" min="0" max="100" step="1"></td>' +
+        '<td><input type="number" class="edit-input" style="width:80px;" id="cs-months-' + idx + '" value="' + contractMonths + '" placeholder="120" min="1" step="1"></td>' +
+        '<td><input type="number" class="edit-input" style="width:130px;" id="cs-payback-' + idx + '" value="' + monthlyPayback + '" placeholder="自动计算" step="0.01"></td>' +
+        '</tr>';
+    });
+  }
+  document.getElementById('contractSettingModal').classList.add('show');
+}
+
+function closeContractSetting() {
+  document.getElementById('contractSettingModal').classList.remove('show');
+}
+
+function saveContractSettings() {
+  const settings = {};
+  const projects = DATA.proj_ranking || [];
+  projects.forEach((p, idx) => {
+    const contractStart = document.getElementById('cs-start-' + idx).value || '2024-01';
+    const sharePct = parseFloat(document.getElementById('cs-share-' + idx).value);
+    const contractMonths = parseInt(document.getElementById('cs-months-' + idx).value);
+    const monthlyPayback = parseFloat(document.getElementById('cs-payback-' + idx).value);
+    settings[p.name] = {
+      contract_start: contractStart,
+      share_pct: isNaN(sharePct) ? 80 : sharePct,
+      contract_months: isNaN(contractMonths) ? 120 : contractMonths,
+      monthly_payback: isNaN(monthlyPayback) ? 0 : monthlyPayback
+    };
+  });
+  saveContractSettingsToStorage(settings);
+  showToast('合同信息设置已保存', 'success');
+  closeContractSetting();
+  renderContractTable();
+}
+
+// 点击模态框外部关闭
+document.addEventListener('click', function(event) {
+  const modal = document.getElementById('paybackModal');
+  if (event.target === modal) {
+    closePaybackSetting();
+  }
+  const contractModal = document.getElementById('contractSettingModal');
+  if (event.target === contractModal) {
+    closeContractSetting();
+  }
+});
+
+// ============== DATA PLACEHOLDER ==============
+let ORIGINAL_DATA = null;
+
+let DATA = {
+  summary: {"total_income":0,"project_income":0,"project_count":0,"avg_daily_income":0},
+  proj_ranking: [],
+  type_ranking: [],
+  cat_ranking: [],
+  week_totals: [],
+  proj_week_data: {},
+  proj_type_data: {}
+};
+let DATA_ORIG = { proj_ranking: [] }; // 保存原始proj_ranking，供全局筛选使用
+
+const PROJECT_SUMMARY = [];
+const PROJECT_SUMMARY_MAP = {};
+let ALL_MONTHS_DATA = {}; // 按月存储累计数据 { "2026-04": { 项目名: {income, expense, investment} } }，用于"至今累计"列
+let ALL_DETAIL_DATA = []; // 所有月份的行级明细 [{ project, date, summary, remark, amount, type }, ...]，用于明细搜索
+
+// Excel parsing state
+let parsedData = null;
+let charts = [];
+let isDataUpdated = false;
+
+// ============== FILE UPLOAD HANDLING ==============
+const uploadArea = document.getElementById('uploadArea');
+const fileInput = document.getElementById('fileInput');
+const fileInfo = document.getElementById('fileInfo');
+const parseResults = document.getElementById('parseResults');
+
+// Drag and drop
+uploadArea.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  uploadArea.classList.add('dragover');
+});
+uploadArea.addEventListener('dragleave', () => {
+  uploadArea.classList.remove('dragover');
+});
+uploadArea.addEventListener('drop', (e) => {
+  e.preventDefault();
+  uploadArea.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file);
+});
+fileInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (file) handleFile(file);
+});
+
+function handleFile(file) {
+  if (!file.name.match(/\.(xlsx|xls)$/i)) {
+    showToast('请上传 Excel 文件 (.xlsx, .xls)', 'error');
+    return;
+  }
+  showToast('正在解析文件...', 'info');
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+      parsedData = { workbook, sheets: {} };
+      workbook.SheetNames.forEach(name => {
+        const sheet = workbook.Sheets[name];
+        const json = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+        parsedData.sheets[name] = json;
+      });
+      document.getElementById('fileName').textContent = file.name;
+      document.getElementById('fileMeta').textContent = '大小: ' + (file.size / 1024).toFixed(1) + ' KB | 工作表: ' + workbook.SheetNames.length;
+      document.getElementById('fileStatus').innerHTML = '✓ 已解析';
+      fileInfo.style.display = 'flex';
+      showSheetPreview(workbook.SheetNames);
+      parseResults.style.display = 'block';
+      showToast('文件解析成功！请预览数据后点击"更新报表"', 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('文件解析失败：' + err.message, 'error');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function showSheetPreview(sheetNames) {
+  const tabs = document.getElementById('resultTabs');
+  const sheets = document.getElementById('resultSheets');
+  tabs.innerHTML = sheetNames.map((name, i) => '<div class="result-tab ' + (i === 0 ? 'active' : '') + '" onclick="switchTab(\'' + name + '\')">' + name + '</div>').join('');
+  sheets.innerHTML = sheetNames.map((name, i) => '<div class="result-sheet ' + (i === 0 ? 'active' : '') + '" id="sheet-' + name + '">' + renderTablePreview(parsedData.sheets[name]) + '</div>').join('');
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.result-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.result-sheet').forEach(s => s.classList.remove('active'));
+  document.querySelector('.result-tab[onclick="switchTab(\'' + name + '\')"]').classList.add('active');
+  document.getElementById('sheet-' + name).classList.add('active');
+}
+
+function renderTablePreview(data) {
+  if (!data || data.length === 0) return '<p style="padding:20px;color:#999;">无数据</p>';
+  const maxRows = Math.min(data.length, 20);
+  let html = '<div class="result-preview"><table><thead><tr>';
+  data[0].forEach(cell => { html += '<th>' + (cell || '') + '</th>'; });
+  html += '</tr></thead><tbody>';
+  for (let i = 1; i < maxRows; i++) {
+    html += '<tr>';
+    data[i].forEach(cell => { html += '<td>' + (cell || '') + '</td>'; });
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  if (data.length > 20) html += '<p style="padding:10px;color:#999;font-size:12px;">显示前20行，共 ' + data.length + ' 行</p>';
+  html += '</div>';
+  return html;
+}
+
+function clearFile() {
+  fileInput.value = '';
+  fileInfo.style.display = 'none';
+  parseResults.style.display = 'none';
+  parsedData = null;
+  document.getElementById('dataSourceBadge').className = 'data-source builtin';
+  document.getElementById('dataSourceBadge').innerHTML = '📦 待上传数据';
+}
+
+function updateReport() {
+  if (!parsedData) {
+    showToast('请先上传 Excel 文件', 'error');
+    return;
+  }
+  // 不再重置 ALL_DETAIL_DATA，改为去重合并：保留原有非重复数据
+  // 记录合并前的数据量，用于统计新增
+  const prevDetailCount = ALL_DETAIL_DATA.length;
+  const prevMonthCount = Object.keys(ALL_MONTHS_DATA).length;
+  const sheetNames = Object.keys(parsedData.sheets);
+  let mainSheetName = sheetNames[0];
+  for (const name of sheetNames) {
+    const lower = name.toLowerCase();
+    if (lower.includes('收入') || lower.includes('明细') || lower.includes('项目')) {
+      mainSheetName = name;
+      break;
+    }
+  }
+  const sheetData = parsedData.sheets[mainSheetName];
+  const extracted = extractIncomeData(sheetData, parsedData.workbook, true);
+  // 从Excel原始数据中按月分组提取，去重合并到 ALL_MONTHS_DATA（保留原有非重复数据）
+  const mergeResult = mergeAllMonthsData(sheetData, parsedData.workbook);
+  // 提示用户已提取的月份数量和去重信息
+  const monthCount = Object.keys(ALL_MONTHS_DATA).length;
+  if (monthCount > 0) {
+    const monthLabels = Object.keys(ALL_MONTHS_DATA).sort().map(k => k.replace('-', '年') + '月').join('、');
+    let mergeMsg = '已提取 ' + monthCount + ' 个月份数据：' + monthLabels;
+    if (mergeResult) {
+      mergeMsg += '（新增 ' + mergeResult.newCount + ' 条，跳过重复 ' + mergeResult.dupCount + ' 条）';
+    }
+    showToast(mergeMsg, 'success');
+  }
+  if (extracted && extracted.length > 0) {
+    DATA.proj_ranking = extracted.map(p => ({
+      name: p.name,
+      income: p.income || 0,
+      expense: p.expense || 0,
+      investment: p.investment || 0,
+      type: p.type || 'income',
+      detail: p.detail || []
+    }));
+    // 保存原始proj_ranking副本，供全局筛选使用
+    DATA_ORIG.proj_ranking = DATA.proj_ranking.map(p => ({...p}));
+    DATA.summary.project_income = extracted.reduce((sum, p) => sum + ((p.income || 0) - (p.expense || 0)), 0);
+    DATA.summary.project_count = extracted.length;
+    const catMap = {};
+    const catRaw = [
+      ['锦州医科大学医疗学院','高校'],['华东师范大学','高校'],['上海立达学院','高校'],['银川科技学院','高校'],
+      ['成都文理学院','高校'],['西安工商学院','高校'],['昆明传媒学院','高校'],['首都师范科德学院','高校'],
+      ['南京航空航天大学金城学院','高校'],['山东德州近博技工学校','高校'],['会理现代职业技术学院','高校'],
+      ['四海家园','公寓'],['有巢国际公寓芦恒路店','公寓'],['有巢国际公寓吴中路店','公寓'],
+      ['有巢公寓北京总部基地店','公寓'],['悦庭公寓','公寓'],['中海友里公寓（上海金沙江路店）','公寓'],
+      ['乐居雍萃浦电公寓','公寓'],['龙岩人民医院','医院']
+    ];
+    catRaw.forEach(([n,c]) => catMap[n] = c);
+    const catTotals = {};
+    extracted.forEach(p => {
+      const cat = catMap[p.name] || '其他';
+      const netAmount = (p.income || 0) - (p.expense || 0);
+      catTotals[cat] = (catTotals[cat] || 0) + netAmount;
+    });
+    DATA.cat_ranking = Object.entries(catTotals).map(([name, income]) => ({ name, income }));
+    let totalIncome = 0, totalExpense = 0;
+    extracted.forEach(p => { totalIncome += p.income || 0; totalExpense += p.expense || 0; });
+    DATA.type_ranking = [
+      { name: '收入', income: totalIncome },
+      { name: '支出', income: totalExpense },
+      { name: '净收入', income: totalIncome - totalExpense }
+    ];
+    isDataUpdated = true;
+    document.getElementById('dataSourceBadge').className = 'data-source uploaded';
+    document.getElementById('dataSourceBadge').innerHTML = '📤 已更新数据';
+    applyGlobalProjectFilter();
+    renderAll();
+    initSearchMonthOptions();
+    showToast('报表数据已更新！', 'success');
+  } else {
+    showToast('未能从文件中提取有效数据，请检查文件格式', 'error');
+  }
+}
+
+function extractIncomeData(sheetData, workbook, filterByMonth) {
+  if (!sheetData || sheetData.length < 2) return null;
+  let headerRow = 0;
+  for (let i = 0; i < Math.min(sheetData.length, 3); i++) {
+    const row = sheetData[i];
+    const hasContent = row.some(cell => cell && String(cell).trim());
+    if (hasContent) {
+      const rowStr = row.join('').toLowerCase();
+      if (rowStr.includes('项目') || rowStr.includes('类型') || rowStr.includes('收入')) {
+        headerRow = i;
+        break;
+      }
+    }
+  }
+  const headers = sheetData[headerRow];
+  if (!headers) return null;
+  let projectCol = -1, typeCol = -1, amountCol = -1, dateCol = -1, summaryCol = -1, remarkCol = -1;
+  for (let i = 0; i < headers.length; i++) {
+    const h = String(headers[i] || '').trim().toLowerCase();
+    if (h.includes('项目') || h.includes('名称') || h.includes('客户')) projectCol = i;
+    else if (h.includes('类型') || h.includes('分类')) typeCol = i;
+    else if (h.includes('收入') || h.includes('金额') || h.includes('发生额')) amountCol = i;
+    else if (h.includes('日期') || h.includes('时间')) dateCol = i;
+    else if (h.includes('摘要') || h.includes('说明')) summaryCol = i;
+    else if (h.includes('备注') || h.includes('注释')) remarkCol = i;
+  }
+  if (projectCol === -1) projectCol = 0;
+  if (typeCol === -1) typeCol = 4;
+  if (amountCol === -1) amountCol = 3;
+  const startRow = headerRow + 1;
+  const result = [];
+  const projectSummary = {};
+  for (let i = startRow; i < sheetData.length; i++) {
+    const row = sheetData[i];
+    if (!row || row.length === 0) continue;
+    const projectName = String(row[projectCol] || '').trim();
+    if (!projectName || projectName === '合计' || projectName === '总计' || projectName === '小计') continue;
+    let recordType = 'income';
+    if (typeCol >= 0 && row[typeCol]) {
+      const typeVal = String(row[typeCol]).trim().toLowerCase();
+      if (typeVal.includes('支出') || typeVal.includes('费用') || typeVal.includes('成本')) recordType = 'expense';
+      else if (typeVal.includes('投入') || typeVal.includes('项目支出')) recordType = 'investment';
+      else if (typeVal.includes('排除') || typeVal.includes('不计') || typeVal.includes('非项目')) recordType = 'exclude';
+      else if (typeVal.includes('收入') || typeVal.includes('入账')) recordType = 'income';
+    }
+    let amount = 0;
+    if (amountCol >= 0 && row[amountCol] !== undefined) amount = parseFloat(row[amountCol]) || 0;
+    if (recordType === 'expense' && amount < 0) amount = Math.abs(amount);
+    if (recordType === 'investment' && amount < 0) amount = Math.abs(amount);
+    if (amount === 0) continue;
+    let date = '';
+    if (dateCol >= 0 && row[dateCol]) {
+      const rawDate = row[dateCol];
+      if (rawDate instanceof Date) {
+        // XLSX cellDates:true 会将日期解析为 Date 对象
+        const y = rawDate.getFullYear();
+        const m = String(rawDate.getMonth() + 1).padStart(2, '0');
+        const d = String(rawDate.getDate()).padStart(2, '0');
+        date = y + '-' + m + '-' + d;
+      } else {
+        date = String(rawDate).trim();
+        // 处理 YYYYMMDD 格式
+        if (date.length === 8 && /^\d{8}$/.test(date)) date = date.substring(0,4) + '-' + date.substring(4,6) + '-' + date.substring(6,8);
+        // 处理 YYYY/MM/DD 或 YYYY.MM.DD 格式
+        else if (/^\d{4}[\/\.]\d{1,2}[\/\.]\d{1,2}$/.test(date)) date = date.replace(/[\/\.]/g, '-');
+      }
+    }
+    // 按选定年月筛选数据（仅对有日期的行筛选，无日期的行保留）
+    if (filterByMonth && date && date.length >= 7) {
+      const dateMonthKey = date.substring(0, 7); // "YYYY-MM"
+      if (dateMonthKey !== getSelectedMonthKey()) continue;
+    }
+    const summary = summaryCol >= 0 ? String(row[summaryCol] || '').trim() : '';
+    const remark = remarkCol >= 0 ? String(row[remarkCol] || '').trim() : '';
+    if (!projectSummary[projectName]) projectSummary[projectName] = { income: 0, expense: 0, investment: 0, detail: [] };
+    const detail = { date, summary, remark, amount, type: recordType };
+    projectSummary[projectName].detail.push(detail);
+    // 全局明细数据 ALL_DETAIL_DATA 由 mergeAllMonthsData 统一去重管理，此处不再推送
+    if (recordType === 'income') projectSummary[projectName].income += amount;
+    else if (recordType === 'expense') projectSummary[projectName].expense += amount;
+    else if (recordType === 'investment') projectSummary[projectName].investment += amount;
+  }
+  for (const [name, data] of Object.entries(projectSummary)) {
+    result.push({
+      name, income: data.income, expense: data.expense, investment: data.investment || 0,
+      type: data.expense > 0 ? 'mixed' : 'income', detail: data.detail
+    });
+  }
+  result.sort((a, b) => (b.income - b.expense) - (a.income - a.expense));
+  return result;
+}
+
+// 从Excel原始数据中按月分组提取，合并到 ALL_MONTHS_DATA（去重合并，保留原有非重复数据）
+function mergeAllMonthsData(sheetData, workbook) {
+  if (!sheetData || sheetData.length < 2) return;
+  // 复用 extractIncomeData 的表头识别逻辑
+  let headerRow = 0;
+  for (let i = 0; i < Math.min(sheetData.length, 3); i++) {
+    const row = sheetData[i];
+    const hasContent = row.some(cell => cell && String(cell).trim());
+    if (hasContent) {
+      const rowStr = row.join('').toLowerCase();
+      if (rowStr.includes('项目') || rowStr.includes('类型') || rowStr.includes('收入')) {
+        headerRow = i;
+        break;
+      }
+    }
+  }
+  const headers = sheetData[headerRow];
+  if (!headers) return;
+  let projectCol = -1, typeCol = -1, amountCol = -1, dateCol = -1, summaryCol = -1, remarkCol = -1;
+  for (let i = 0; i < headers.length; i++) {
+    const h = String(headers[i] || '').trim().toLowerCase();
+    if (h.includes('项目') || h.includes('名称') || h.includes('客户')) projectCol = i;
+    else if (h.includes('类型') || h.includes('分类')) typeCol = i;
+    else if (h.includes('收入') || h.includes('金额') || h.includes('发生额')) amountCol = i;
+    else if (h.includes('日期') || h.includes('时间')) dateCol = i;
+    else if (h.includes('摘要') || h.includes('说明')) summaryCol = i;
+    else if (h.includes('备注') || h.includes('注释')) remarkCol = i;
+  }
+  if (projectCol === -1) projectCol = 0;
+  if (typeCol === -1) typeCol = 4;
+  if (amountCol === -1) amountCol = 3;
+  const startRow = headerRow + 1;
+  // 构建已有明细的唯一键集合，用于去重
+  // 只要有一列不同就算不同数据：project+date+summary+remark+amount+type 全部相同才为重复
+  const existingKeys = new Set();
+  ALL_DETAIL_DATA.forEach(d => {
+    existingKeys.add(d.project + '|' + d.date + '|' + d.summary + '|' + d.remark + '|' + d.amount + '|' + d.type);
+  });
+  // 按月+项目分组统计（仅统计新增的非重复数据）
+  const monthProjectData = {}; // { "2026-04": { 项目名: {income, expense} } }
+  let newCount = 0, dupCount = 0;
+  for (let i = startRow; i < sheetData.length; i++) {
+    const row = sheetData[i];
+    if (!row || row.length === 0) continue;
+    const projectName = String(row[projectCol] || '').trim();
+    if (!projectName || projectName === '合计' || projectName === '总计' || projectName === '小计') continue;
+    let recordType = 'income';
+    if (typeCol >= 0 && row[typeCol]) {
+      const typeVal = String(row[typeCol]).trim().toLowerCase();
+      if (typeVal.includes('支出') || typeVal.includes('费用') || typeVal.includes('成本')) recordType = 'expense';
+      else if (typeVal.includes('投入') || typeVal.includes('项目支出')) recordType = 'investment';
+      else if (typeVal.includes('排除') || typeVal.includes('不计') || typeVal.includes('非项目')) recordType = 'exclude';
+      else if (typeVal.includes('收入') || typeVal.includes('入账')) recordType = 'income';
+    }
+    let amount = 0;
+    if (amountCol >= 0 && row[amountCol] !== undefined) amount = parseFloat(row[amountCol]) || 0;
+    if (recordType === 'expense' && amount < 0) amount = Math.abs(amount);
+    if (recordType === 'investment' && amount < 0) amount = Math.abs(amount);
+    if (amount === 0 || recordType === 'exclude') continue;
+    // 解析日期获取月份key
+    let date = '';
+    if (dateCol >= 0 && row[dateCol]) {
+      const rawDate = row[dateCol];
+      if (rawDate instanceof Date) {
+        const y = rawDate.getFullYear();
+        const m = String(rawDate.getMonth() + 1).padStart(2, '0');
+        const d = String(rawDate.getDate()).padStart(2, '0');
+        date = y + '-' + m + '-' + d;
+      } else {
+        date = String(rawDate).trim();
+        if (date.length === 8 && /^\d{8}$/.test(date)) date = date.substring(0,4) + '-' + date.substring(4,6) + '-' + date.substring(6,8);
+        else if (/^\d{4}[\/\.]\d{1,2}[\/\.]\d{1,2}$/.test(date)) date = date.replace(/[\/\.]/g, '-');
+      }
+    }
+    // 从日期中提取 "YYYY-MM" 作为月份key
+    let monthKey = '';
+    if (date && date.length >= 7) {
+      monthKey = date.substring(0, 7); // e.g. "2026-04"
+    }
+    if (!monthKey) continue; // 没有日期的行跳过（无法归入月份）
+    const summary = summaryCol >= 0 ? String(row[summaryCol] || '').trim() : '';
+    const remark = remarkCol >= 0 ? String(row[remarkCol] || '').trim() : '';
+    // 去重检查：所有列都相同才算重复
+    const rowKey = projectName + '|' + date + '|' + summary + '|' + remark + '|' + amount + '|' + recordType;
+    if (existingKeys.has(rowKey)) {
+      dupCount++;
+      continue; // 跳过重复数据
+    }
+    // 新增数据：加入去重集合和全局明细
+    existingKeys.add(rowKey);
+    ALL_DETAIL_DATA.push({ project: projectName, date, summary, remark, amount, type: recordType });
+    newCount++;
+    if (!monthProjectData[monthKey]) monthProjectData[monthKey] = {};
+    if (!monthProjectData[monthKey][projectName]) monthProjectData[monthKey][projectName] = { income: 0, expense: 0, investment: 0 };
+    if (recordType === 'income') monthProjectData[monthKey][projectName].income += amount;
+    else if (recordType === 'expense') monthProjectData[monthKey][projectName].expense += amount;
+    else if (recordType === 'investment') monthProjectData[monthKey][projectName].investment += amount;
+  }
+  // 将新增数据合并到 ALL_MONTHS_DATA：同月同项目累加，不同月/项目直接添加
+  for (const [monthKey, projects] of Object.entries(monthProjectData)) {
+    if (!ALL_MONTHS_DATA[monthKey]) {
+      ALL_MONTHS_DATA[monthKey] = projects;
+    } else {
+      // 同月数据：按项目累加
+      for (const [projName, data] of Object.entries(projects)) {
+        if (!ALL_MONTHS_DATA[monthKey][projName]) {
+          ALL_MONTHS_DATA[monthKey][projName] = { ...data };
+        } else {
+          ALL_MONTHS_DATA[monthKey][projName].income += data.income || 0;
+          ALL_MONTHS_DATA[monthKey][projName].expense += data.expense || 0;
+          ALL_MONTHS_DATA[monthKey][projName].investment += data.investment || 0;
+        }
+      }
+    }
+  }
+  return { newCount, dupCount };
+}
+
+// 从 ALL_MONTHS_DATA 中计算"至今累计"：汇总所有月份的收支
+function getCumulativeData() {
+  const cumulative = {}; // { 项目名: {income, expense, investment} }
+  for (const [monthKey, projects] of Object.entries(ALL_MONTHS_DATA)) {
+    for (const [projName, data] of Object.entries(projects)) {
+      if (!cumulative[projName]) cumulative[projName] = { income: 0, expense: 0, investment: 0 };
+      cumulative[projName].income += data.income || 0;
+      cumulative[projName].expense += data.expense || 0;
+      cumulative[projName].investment += data.investment || 0;
+    }
+  }
+  return cumulative;
+}
+
+// 兼容旧格式：将旧版 ALL_MONTHS_DATA（{项目名: {income, expense}}）转换为新版按月格式
+// 旧格式无法区分月份，归入当前选中月份
+function convertAllMonthsData(data) {
+  if (!data) return {};
+  // 检测是否为新格式（key 是 "YYYY-MM" 形式）
+  const keys = Object.keys(data);
+  if (keys.length === 0) return {};
+  // 新格式的 key 匹配 "YYYY-MM" 模式
+  const isNewFormat = keys.some(k => /^\d{4}-\d{2}$/.test(k));
+  if (isNewFormat) return data;
+  // 旧格式：key 是项目名，value 是 {income, expense}
+  // 将其归入当前选中月份
+  const monthKey = getSelectedMonthKey();
+  const converted = {};
+  converted[monthKey] = {};
+  for (const [projName, projData] of Object.entries(data)) {
+    converted[monthKey][projName] = { income: projData.income || 0, expense: projData.expense || 0, investment: projData.investment || 0 };
+  }
+  return converted;
+}
+
+// 从 ALL_MONTHS_DATA 中加载指定月份的数据到 DATA（用于切换月份时无需重新上传Excel）
+function loadMonthFromAllData(month) {
+  const monthKey = getSelectedMonthKey();
+  const monthData = ALL_MONTHS_DATA[monthKey];
+  if (!monthData || Object.keys(monthData).length === 0) {
+    // 该月没有数据，清空项目列表
+    DATA.proj_ranking = [];
+    DATA_ORIG.proj_ranking = [];
+    DATA.summary.project_income = 0;
+    DATA.summary.project_count = 0;
+    DATA.type_ranking = [];
+    DATA.cat_ranking = [];
+    renderAll();
+    showToast(getSelectedMonthKey() + '暂无数据', 'info');
+    return;
+  }
+  // 从月份数据重建 proj_ranking
+  const catMap = {};
+  const catRaw = [
+    ['锦州医科大学医疗学院','高校'],['华东师范大学','高校'],['上海立达学院','高校'],['银川科技学院','高校'],
+    ['成都文理学院','高校'],['西安工商学院','高校'],['昆明传媒学院','高校'],['首都师范科德学院','高校'],
+    ['南京航空航天大学金城学院','高校'],['山东德州近博技工学校','高校'],['会理现代职业技术学院','高校'],
+    ['四海家园','公寓'],['有巢国际公寓芦恒路店','公寓'],['有巢国际公寓吴中路店','公寓'],
+    ['有巢公寓北京总部基地店','公寓'],['悦庭公寓','公寓'],['中海友里公寓（上海金沙江路店）','公寓'],
+    ['乐居雍萃浦电公寓','公寓'],['龙岩人民医院','医院']
+  ];
+  catRaw.forEach(([n,c]) => catMap[n] = c);
+
+  DATA.proj_ranking = Object.entries(monthData).map(([name, data]) => ({
+    name,
+    income: data.income || 0,
+    expense: data.expense || 0,
+    investment: data.investment || 0,
+    type: (data.expense || 0) > 0 ? 'mixed' : 'income',
+    detail: []
+  }));
+  // 保存原始proj_ranking副本，供全局筛选使用
+  DATA_ORIG.proj_ranking = DATA.proj_ranking.map(p => ({...p}));
+  DATA.proj_ranking.sort((a, b) => (b.income - b.expense) - (a.income - a.expense));
+  DATA.summary.project_income = DATA.proj_ranking.reduce((sum, p) => sum + ((p.income || 0) - (p.expense || 0)), 0);
+  DATA.summary.project_count = DATA.proj_ranking.length;
+  // 分类统计
+  const catTotals = {};
+  DATA.proj_ranking.forEach(p => {
+    const cat = catMap[p.name] || '其他';
+    const netAmount = (p.income || 0) - (p.expense || 0);
+    catTotals[cat] = (catTotals[cat] || 0) + netAmount;
+  });
+  DATA.cat_ranking = Object.entries(catTotals).map(([name, income]) => ({ name, income }));
+  let totalIncome = 0, totalExpense = 0;
+  DATA.proj_ranking.forEach(p => { totalIncome += p.income || 0; totalExpense += p.expense || 0; });
+  DATA.type_ranking = [
+    { name: '收入', income: totalIncome },
+    { name: '支出', income: totalExpense },
+    { name: '净收入', income: totalIncome - totalExpense }
+  ];
+  isDataUpdated = true;
+  document.getElementById('dataSourceBadge').className = 'data-source uploaded';
+  document.getElementById('dataSourceBadge').innerHTML = '📂 ' + getSelectedMonthKey() + '数据';
+  applyGlobalProjectFilter();
+  renderAll();
+}
+
+// ============== RENDER FUNCTIONS ==============
+const COLORS = ['#165dff','#14c9c9','#f7ba1e','#f53f3f','#9fdb1d','#722ed1','#ff7d00','#eb2f96','#00b42a','#86909c'];
+
+function getWeekLabels(m) {
+  const days = getMonthDays(m);
+  // 简单按7天分周
+  const weeks = [];
+  let start = 1;
+  let wi = 1;
+  while (start <= days) {
+    const end = Math.min(start + 6, days);
+    weeks.push('W' + wi + '(' + m + '.' + start + '-' + m + '.' + end + ')');
+    start = end + 1;
+    wi++;
+  }
+  return weeks;
+}
+
+function fmt(n) { return n.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
+function fmtWan(n) { return (n / 10000).toFixed(2); }
+
+function updateKPIs() {
+  const income = DATA.summary.project_income || 0;
+  const uniCat = DATA.cat_ranking.find(c => c.name === '高校');
+  const aptCat = DATA.cat_ranking.find(c => c.name === '公寓');
+  document.getElementById('kpi-total').innerHTML = '¥' + fmtWan(income) + '<span class="kpi-unit">万</span>';
+  document.getElementById('kpi-uni').innerHTML = '¥' + fmtWan(uniCat?.income || 0) + '<span class="kpi-unit">万</span>';
+  document.getElementById('kpi-apt').innerHTML = '¥' + fmtWan(aptCat?.income || 0) + '<span class="kpi-unit">万</span>';
+  document.getElementById('kpi-count').innerHTML = (DATA.summary.project_count || 0) + '<span class="kpi-unit">个</span>';
+  document.getElementById('kpi-daily').innerHTML = '¥' + fmtWan(income / getMonthDays(getSelectedMonth())) + '<span class="kpi-unit">万</span>';
+}
+
+function renderCharts() {
+  // Destroy existing charts
+  charts.forEach(c => c.dispose());
+  charts = [];
+  
+  // 1. 项目收入 Top 10 - 收入支出对比柱状图
+  const rankingChart = echarts.init(document.getElementById('chart-ranking'));
+  const projData = DATA.proj_ranking.slice(0, 10).map(p => ({
+    ...p, 
+    netIncome: (p.income || 0) - (p.expense || 0)
+  })).sort((a, b) => b.netIncome - a.netIncome);
+  
+  rankingChart.setOption({
+    tooltip: { 
+      trigger: 'axis', 
+      axisPointer: { type: 'shadow' },
+      formatter: function(params) {
+        const name = params[0].name;
+        const income = params.find(p => p.seriesName === '收入')?.value || 0;
+        const expense = params.find(p => p.seriesName === '支出')?.value || 0;
+        const net = income - expense;
+        return '<div style="font-weight:600">' + name + '</div>' +
+               '<div style="color:#00b42a">收入: ¥' + fmt(income) + '</div>' +
+               '<div style="color:#d91a1a">支出: ¥' + fmt(expense) + '</div>' +
+               '<div style="color:' + (net >= 0 ? '#00b42a' : '#d91a1a') + ';font-weight:600">净收入: ¥' + fmt(net) + '</div>';
+      }
+    },
+    legend: { data: ['收入', '支出'], bottom: 0 },
+    grid: { left: 150, right: 30, top: 10, bottom: 40 },
+    xAxis: { type: 'value', axisLabel: { formatter: v => '¥' + (v/10000).toFixed(1) + '万' } },
+    yAxis: { type: 'category', data: projData.map(p => p.name).reverse(), axisLabel: { fontSize: 11 } },
+    series: [
+      { name: '收入', type: 'bar', data: projData.map(p => p.income).reverse(), itemStyle: { color: '#00b42a', borderRadius: [0, 0, 0, 0] }, stack: 'total' },
+      { name: '支出', type: 'bar', data: projData.map(p => -p.expense).reverse(), itemStyle: { color: '#d91a1a', borderRadius: [0, 0, 0, 0] }, stack: 'total' }
+    ]
+  });
+  charts.push(rankingChart);
+
+  // 2. 收支构成 - 环形图
+  const typeChart = echarts.init(document.getElementById('chart-type'));
+  const totalIncome = DATA.type_ranking.find(t => t.name === '收入')?.income || 0;
+  const totalExpense = DATA.type_ranking.find(t => t.name === '支出')?.income || 0;
+  const netIncome = totalIncome - totalExpense;
+  typeChart.setOption({
+    tooltip: { 
+      trigger: 'item', 
+      formatter: params => params.name + '<br/>¥' + fmt(params.value) + ' (' + params.percent + '%)' 
+    },
+    legend: { orient: 'vertical', right: 20, top: 'center' },
+    series: [{
+      type: 'pie',
+      radius: ['45%', '75%'],
+      center: ['35%', '50%'],
+      avoidLabelOverlap: false,
+      itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 2 },
+      label: { show: false },
+      emphasis: { 
+        label: { show: true, fontSize: 14, fontWeight: 'bold' },
+        itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0, 0, 0, 0.5)' }
+      },
+      data: [
+        { value: totalIncome, name: '收入', itemStyle: { color: '#00b42a' } },
+        { value: totalExpense, name: '支出', itemStyle: { color: '#d91a1a' } },
+        { value: Math.max(netIncome, 0), name: '净收入', itemStyle: { color: '#165dff' } }
+      ]
+    }]
+  });
+  charts.push(typeChart);
+
+  // 3. 类别分布 - 南丁格尔玫瑰图
+  const catChart = echarts.init(document.getElementById('chart-category'));
+  catChart.setOption({
+    tooltip: { 
+      trigger: 'item', 
+      formatter: params => params.name + '<br/>¥' + fmt(params.value) + ' (' + params.percent + '%)' 
+    },
+    legend: { bottom: 0 },
+    series: [{
+      type: 'pie',
+      radius: ['20%', '75%'],
+      center: ['50%', '45%'],
+      roseType: 'area',
+      itemStyle: { borderRadius: 6 },
+      label: { show: true, formatter: '{b}: {d}%' },
+      data: DATA.cat_ranking.map((c, i) => ({ 
+        value: c.income, 
+        name: c.name, 
+        itemStyle: { color: COLORS[i % COLORS.length] } 
+      }))
+    }]
+  });
+  charts.push(catChart);
+
+}
+
+// ============== 项目月收入趋势图 ==============
+function initTrendControls() {
+  const sel = document.getElementById('trendProject');
+  if (!sel) return;
+  const filterSet = loadGlobalFilter();
+  // 收集所有项目名（从ALL_MONTHS_DATA中），并应用全局筛选
+  const projectNames = new Set();
+  for (const projects of Object.values(ALL_MONTHS_DATA)) {
+    for (const name of Object.keys(projects)) {
+      if (!filterSet || filterSet.has(name)) {
+        projectNames.add(name);
+      }
+    }
+  }
+  const sorted = Array.from(projectNames).sort();
+  // 保留当前选择
+  const curVal = sel.value;
+  sel.innerHTML = '<option value="__all__">全部项目</option>';
+  sorted.forEach(name => {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    sel.appendChild(opt);
+  });
+  // 恢复选择
+  if (curVal && sel.querySelector('option[value="' + curVal + '"]')) {
+    sel.value = curVal;
+  }
+  // 设置月份区间默认值
+  const monthKeys = Object.keys(ALL_MONTHS_DATA).sort();
+  const startInput = document.getElementById('trendStart');
+  const endInput = document.getElementById('trendEnd');
+  if (monthKeys.length > 0) {
+    if (!startInput.value) startInput.value = monthKeys[0];
+    if (!endInput.value) endInput.value = monthKeys[monthKeys.length - 1];
+  }
+}
+
+function renderTrendChart() {
+  const container = document.getElementById('chart-trend');
+  if (!container) return;
+  // 查找或初始化echarts实例
+  let chart = charts.find(c => c.getDom && c.getDom() === container);
+  if (chart) { chart.clear(); } else { chart = echarts.init(container); charts.push(chart); }
+
+  const monthKeys = Object.keys(ALL_MONTHS_DATA).sort();
+  if (monthKeys.length === 0) {
+    chart.setOption({ title: { text: '暂无多月份数据，请上传多个月份的Excel', left: 'center', top: 'center', textStyle: { color: '#86909c', fontSize: 14 } } });
+    return;
+  }
+
+  // 月份区间筛选
+  const startVal = document.getElementById('trendStart').value;
+  const endVal = document.getElementById('trendEnd').value;
+  let filteredMonths = monthKeys;
+  if (startVal) filteredMonths = filteredMonths.filter(k => k >= startVal);
+  if (endVal) filteredMonths = filteredMonths.filter(k => k <= endVal);
+
+  if (filteredMonths.length === 0) {
+    chart.setOption({ title: { text: '所选月份区间无数据', left: 'center', top: 'center', textStyle: { color: '#86909c', fontSize: 14 } } });
+    return;
+  }
+
+  // 项目筛选
+  const selectedProject = document.getElementById('trendProject').value;
+  const showLabel = document.getElementById('trendLabel').checked;
+
+  const filterSet = loadGlobalFilter();
+  // 收集所有项目名
+  const projectNames = new Set();
+  for (const mk of filteredMonths) {
+    const projects = ALL_MONTHS_DATA[mk] || {};
+    for (const name of Object.keys(projects)) {
+      if (!filterSet || filterSet.has(name)) {
+        projectNames.add(name);
+      }
+    }
+  }
+
+  // X轴月份标签
+  const xLabels = filteredMonths.map(k => {
+    const parts = k.split('-');
+    return parts[0].slice(2) + '年' + parseInt(parts[1]) + '月';
+  });
+
+  // 构建series
+  const series = [];
+  const legendData = [];
+  const sortedNames = Array.from(projectNames).sort();
+
+  if (selectedProject === '__all__') {
+    // 全部项目
+    sortedNames.forEach((name, idx) => {
+      const data = filteredMonths.map(mk => {
+        const proj = (ALL_MONTHS_DATA[mk] || {})[name];
+        return proj ? (proj.income || 0) : 0;
+      });
+      legendData.push(name);
+      series.push({
+        name: name,
+        type: 'line',
+        data: data,
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 6,
+        lineStyle: { width: 2 },
+        label: {
+          show: showLabel,
+          position: 'top',
+          fontSize: 10,
+          formatter: function(p) { return p.value > 0 ? '¥' + fmtWan(p.value) : ''; }
+        },
+        itemStyle: { color: COLORS[idx % COLORS.length] }
+      });
+    });
+  } else {
+    // 单个项目
+    const name = selectedProject;
+    const data = filteredMonths.map(mk => {
+      const proj = (ALL_MONTHS_DATA[mk] || {})[name];
+      return proj ? (proj.income || 0) : 0;
+    });
+    legendData.push(name);
+    series.push({
+      name: name,
+      type: 'line',
+      data: data,
+      smooth: true,
+      symbol: 'circle',
+      symbolSize: 8,
+      lineStyle: { width: 3, color: '#165dff' },
+      areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: 'rgba(22,93,255,0.25)' }, { offset: 1, color: 'rgba(22,93,255,0.02)' }]) },
+      label: {
+        show: showLabel,
+        position: 'top',
+        fontSize: 11,
+        fontWeight: 600,
+        formatter: function(p) { return p.value > 0 ? '¥' + fmtWan(p.value) : ''; }
+      },
+      itemStyle: { color: '#165dff' }
+    });
+  }
+
+  chart.setOption({
+    tooltip: {
+      trigger: 'axis',
+      formatter: function(params) {
+        let html = '<div style="font-weight:600;margin-bottom:4px;">' + params[0].axisValue + '</div>';
+        params.forEach(p => {
+          html += '<div style="display:flex;align-items:center;gap:6px;">' +
+            '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + p.color + ';"></span>' +
+            p.seriesName + ': <b>¥' + fmt(p.value) + '</b></div>';
+        });
+        return html;
+      }
+    },
+    legend: {
+      data: legendData,
+      type: 'scroll',
+      bottom: 0,
+      textStyle: { fontSize: 11 },
+      pageIconSize: 12,
+      pageTextStyle: { fontSize: 11 }
+    },
+    grid: { left: 60, right: 20, top: 20, bottom: selectedProject === '__all__' && legendData.length > 8 ? 60 : 36 },
+    xAxis: { type: 'category', data: xLabels, axisLabel: { fontSize: 11 }, boundaryGap: false },
+    yAxis: { type: 'value', axisLabel: { fontSize: 11, formatter: function(v) { return '¥' + fmtWan(v); } } },
+    series: series
+  }, true);
+}
+
+// ============== 全局项目筛选（控制整个网页显示的项目）==============
+const GLOBAL_FILTER_KEY = 'global_project_filter_v1';
+
+function getCatMap() {
+  const catMap = {};
+  const catRaw = [
+    ['锦州医科大学医疗学院','高校'],['华东师范大学','高校'],['上海立达学院','高校'],['银川科技学院','高校'],
+    ['成都文理学院','高校'],['西安工商学院','高校'],['昆明传媒学院','高校'],['首都师范科德学院','高校'],
+    ['南京航空航天大学金城学院','高校'],['山东德州近博技工学校','高校'],['会理现代职业技术学院','高校'],
+    ['四海家园','公寓'],['有巢国际公寓芦恒路店','公寓'],['有巢国际公寓吴中路店','公寓'],
+    ['有巢公寓北京总部基地店','公寓'],['悦庭公寓','公寓'],['中海友里公寓（上海金沙江路店）','公寓'],
+    ['乐居雍萃浦电公寓','公寓'],['龙岩人民医院','医院']
+  ];
+  catRaw.forEach(([n,c]) => catMap[n] = c);
+  return catMap;
+}
+
+function loadGlobalFilter() {
+  try {
+    const saved = localStorage.getItem(GLOBAL_FILTER_KEY);
+    if (!saved) return null;
+    return new Set(JSON.parse(saved));
+  } catch(e) { return null; }
+}
+
+function saveGlobalFilter(set) {
+  if (set === null) {
+    localStorage.removeItem(GLOBAL_FILTER_KEY);
+  } else {
+    localStorage.setItem(GLOBAL_FILTER_KEY, JSON.stringify(Array.from(set)));
+  }
+  updateGlobalFilterBadge();
+}
+
+function updateGlobalFilterBadge() {
+  const btn = document.getElementById('globalFilterBtn');
+  const badge = document.getElementById('globalFilterBadge');
+  if (!btn || !badge) return;
+  const filterSet = loadGlobalFilter();
+  if (filterSet && filterSet.size > 0) {
+    badge.style.display = 'inline-block';
+    badge.textContent = filterSet.size;
+    btn.style.borderColor = '#165dff';
+    btn.style.background = 'rgba(22,93,255,0.2)';
+  } else {
+    badge.style.display = 'none';
+    btn.style.borderColor = 'rgba(255,255,255,0.3)';
+    btn.style.background = 'rgba(255,255,255,0.15)';
+  }
+}
+
+function toggleGlobalFilterPanel() {
+  const panel = document.getElementById('globalFilterPanel');
+  if (!panel) return;
+  if (panel.style.display === 'block') {
+    panel.style.display = 'none';
+    return;
+  }
+  initGlobalFilterPanel();
+  panel.style.display = 'block';
+}
+
+function initGlobalFilterPanel() {
+  const panel = document.getElementById('globalFilterPanel');
+  if (!panel) return;
+  const filterSet = loadGlobalFilter();
+  const projectNames = new Set();
+  for (const projects of Object.values(ALL_MONTHS_DATA)) {
+    for (const name of Object.keys(projects)) {
+      projectNames.add(name);
+    }
+  }
+  const sorted = Array.from(projectNames).sort();
+  let html = '<div class="global-filter-hint">筛选项目（已选 <span id="gfCount">0</span> 个）</div>';
+  html += '<div class="gf-btn-bar"><button class="gf-btn" onclick="gfSelectAll()">全选</button><button class="gf-btn" onclick="gfSelectNone()">全不选</button></div>';
+  sorted.forEach(function(name) {
+    const checked = (!filterSet || filterSet.has(name)) ? 'checked' : '';
+    html += '<div class="gf-item"><input type="checkbox" ' + checked + ' data-name="' + name.replace(/"/g, '&quot;') + '" onchange="onGlobalFilterChange(this)"><label>' + name + '</label></div>';
+  });
+  panel.innerHTML = html;
+  updateGfCount();
+  updateGlobalFilterAllState();
+}
+
+function updateGfCount() {
+  const panel = document.getElementById('globalFilterPanel');
+  if (!panel) return;
+  const countEl = document.getElementById('gfCount');
+  if (countEl) countEl.textContent = panel.querySelectorAll('input[type="checkbox"]:checked').length;
+}
+
+function updateGlobalFilterAllState() {
+  const panel = document.getElementById('globalFilterPanel');
+  if (!panel) return;
+  const checks = panel.querySelectorAll('input[type="checkbox"]');
+  const checked = panel.querySelectorAll('input[type="checkbox"]:checked');
+}
+
+function onGlobalFilterChange(cb) {
+  const name = cb.dataset.name;
+  let filterSet = loadGlobalFilter();
+  if (!filterSet) {
+    // 当前显示全部项目，需要从全量项目构建筛选集
+    filterSet = new Set();
+    for (const projects of Object.values(ALL_MONTHS_DATA)) {
+      for (const pname of Object.keys(projects)) {
+        filterSet.add(pname);
+      }
+    }
+  }
+  if (cb.checked) {
+    filterSet.add(name);
+  } else {
+    filterSet.delete(name);
+  }
+  saveGlobalFilter(filterSet);
+  updateGfCount();
+  refreshAfterGlobalFilter();
+}
+
+function gfSelectAll() {
+  saveGlobalFilter(null);
+  initGlobalFilterPanel();
+  refreshAfterGlobalFilter();
+}
+
+function gfSelectNone() {
+  saveGlobalFilter(new Set());  // 空Set = 不显示任何项目
+  initGlobalFilterPanel();
+  refreshAfterGlobalFilter();
+}
+
+function refreshAfterGlobalFilter() {
+  if (Object.keys(ALL_MONTHS_DATA).length > 0) {
+    const monthKey = getSelectedMonthKey();
+    if (ALL_MONTHS_DATA[monthKey]) {
+      loadMonthFromAllData(monthKey);
+    } else {
+      renderAll();
+    }
+  } else {
+    renderAll();
+  }
+}
+
+function applyGlobalProjectFilter() {
+  if (!DATA_ORIG || !DATA_ORIG.proj_ranking || DATA_ORIG.proj_ranking.length === 0) return;
+  const filterSet = loadGlobalFilter();
+  if (!filterSet) return;
+  DATA.proj_ranking = DATA_ORIG.proj_ranking.filter(p => filterSet.has(p.name));
+  DATA.summary.project_income = DATA.proj_ranking.reduce((sum, p) => sum + ((p.income || 0) - (p.expense || 0)), 0);
+  DATA.summary.project_count = DATA.proj_ranking.length;
+  const catMap = getCatMap();
+  const catTotals = {};
+  DATA.proj_ranking.forEach(p => {
+    const cat = catMap[p.name] || '其他';
+    catTotals[cat] = (catTotals[cat] || 0) + ((p.income || 0) - (p.expense || 0));
+  });
+  DATA.cat_ranking = Object.entries(catTotals).map(([name, income]) => ({ name, income }));
+  let totalIncome = 0, totalExpense = 0;
+  DATA.proj_ranking.forEach(p => { totalIncome += p.income || 0; totalExpense += p.expense || 0; });
+  DATA.type_ranking = [
+    { name: '收入', income: totalIncome },
+    { name: '支出', income: totalExpense },
+    { name: '净收入', income: totalIncome - totalExpense }
+  ];
+}
+
+// 点击全局筛选面板外部关闭
+document.addEventListener('click', function(e) {
+  const btn = document.getElementById('globalFilterBtn');
+  const panel = document.getElementById('globalFilterPanel');
+  if (!btn || !panel) return;
+  if (!btn.contains(e.target) && !panel.contains(e.target)) {
+    panel.style.display = 'none';
+  }
+});
+
+function renderTable() {
+  const catMap = {};
+  const catRaw = [
+    ['锦州医科大学医疗学院','高校'],['华东师范大学','高校'],['上海立达学院','高校'],['银川科技学院','高校'],
+    ['成都文理学院','高校'],['西安工商学院','高校'],['昆明传媒学院','高校'],['首都师范科德学院','高校'],
+    ['南京航空航天大学金城学院','高校'],['山东德州近博技工学校','高校'],['会理现代职业技术学院','高校'],
+    ['四海家园','公寓'],['有巢国际公寓芦恒路店','公寓'],['有巢国际公寓吴中路店','公寓'],
+    ['有巢公寓北京总部基地店','公寓'],['悦庭公寓','公寓'],['中海友里公寓（上海金沙江路店）','公寓'],
+    ['乐居雍萃浦电公寓','公寓'],['龙岩人民医院','医院']
+  ];
+  catRaw.forEach(([n,c]) => catMap[n] = c);
+  const tbody = document.getElementById('table-body');
+  tbody.innerHTML = '';
+  const sortedProj = DATA.proj_ranking.map(p => ({...p, netIncome: (p.income || 0) - (p.expense || 0)})).sort((a, b) => b.netIncome - a.netIncome);
+  const totalIncome = sortedProj.reduce((s, p) => s + (p.income || 0), 0);
+  const maxNetIncome = sortedProj[0] ? sortedProj[0].netIncome : 1;
+  sortedProj.forEach((p, i) => {
+    const netIncome = p.netIncome;
+    const pct = (netIncome / maxNetIncome * 100).toFixed(1);
+    const incomePct = totalIncome > 0 ? (p.income / totalIncome * 100).toFixed(1) : 0;
+    const cat = catMap[p.name] || '其他';
+    const catColor = cat === '高校' ? '#e8f7ff' : cat === '公寓' ? '#e8ffea' : cat === '医院' ? '#fff3f0' : '#f2f3f5';
+    const catText = cat === '高校' ? '#165dff' : cat === '公寓' ? '#00b42a' : cat === '医院' ? '#d91a1a' : '#86909c';
+    const type = p.type || 'income';
+    let typeTag = '', rowClass = '';
+    if (type === 'income') { typeTag = '<span class="income-tag">收入</span>'; rowClass = 'row-income'; }
+    else if (type === 'expense') { typeTag = '<span class="expense-tag">支出</span>'; rowClass = 'row-expense'; }
+    else if (type === 'exclude') { typeTag = '<span class="exclude-tag">排除</span>'; rowClass = 'row-exclude'; }
+    else { typeTag = '<span class="income-tag">收入</span>'; rowClass = 'row-income'; }
+    const netColor = netIncome >= 0 ? '#00b42a' : '#d91a1a';
+    tbody.innerHTML += '<tr class="' + rowClass + '"><td>' + (i+1) + '</td><td class="proj-name">' + p.name + '</td><td>' + typeTag + '</td><td><span style="background:' + catColor + ';color:' + catText + ';padding:2px 8px;border-radius:4px;font-size:12px;">' + cat + '</span></td><td class="num">¥' + fmt(p.income || 0) + '</td><td class="num">¥' + fmt(p.expense || 0) + '</td><td class="num" style="color:' + netColor + ';font-weight:600;">¥' + fmt(netIncome) + '</td><td class="num">' + incomePct + '%</td><td><div class="bar-cell"><div class="mini-bar"><div class="mini-bar-fill" style="width:' + pct + '%"></div></div></div></td></tr>';
+  });
+}
+
+function renderContractTable() {
+  const catMap = {};
+  const catRaw = [
+    ['锦州医科大学医疗学院','高校'],['华东师范大学','高校'],['上海立达学院','高校'],['银川科技学院','高校'],
+    ['成都文理学院','高校'],['西安工商学院','高校'],['昆明传媒学院','高校'],['首都师范科德学院','高校'],
+    ['南京航空航天大学金城学院','高校'],['山东德州近博技工学校','高校'],['会理现代职业技术学院','高校'],
+    ['四海家园','公寓'],['有巢国际公寓芦恒路店','公寓'],['有巢国际公寓吴中路店','公寓'],
+    ['有巢公寓北京总部基地店','公寓'],['悦庭公寓','公寓'],['中海友里公寓（上海金沙江路店）','公寓'],
+    ['乐居雍萃浦电公寓','公寓'],['龙岩人民医院','医院']
+  ];
+  catRaw.forEach(([n,c]) => catMap[n] = c);
+  const contractSettings = loadContractSettings();
+  const contractData = DATA.proj_ranking.map(p => {
+    var s = PROJECT_SUMMARY_MAP[p.name];
+    var income = s ? s.income : (p.type === 'expense' ? 0 : p.income);
+    var expense = s ? s.expense : (p.expense || 0);
+    var projectExpense = s ? (s.investment || 0) : (p.investment || 0); // 当月项目支出（投入类型）
+    var netIncome = income - expense;
+    // 读取用户设置的合同信息，如未设置则使用默认值
+    const cs = contractSettings[p.name] || {};
+    const contract_start = cs.contract_start || '2024-01';
+    const share_pct = cs.share_pct || 80;
+    const contract_months = cs.contract_months || 120;
+    const investment = 100; // 投资金额（万元），可后续扩展
+    return { name: p.name, type: p.type || 'income', cat: catMap[p.name] || '其他', contract_start, share_pct, contract_months, investment, income, expense, projectExpense, netIncome };
+  });
+  const refDate = new Date(getSelectedYear(), getSelectedMonth(), 0);
+  // 更新表头与月份选择器同步
+  const y = getSelectedYear();
+  const m = getSelectedMonth();
+  const shortYear = y % 100;
+  const thIncome = document.getElementById('th-month-income');
+  const thExpense = document.getElementById('th-month-expense');
+  const thTotal = document.getElementById('th-month-total');
+  if (thIncome) thIncome.textContent = shortYear + '年' + m + '月收入';
+  if (thExpense) thExpense.textContent = shortYear + '年' + m + '月支出';
+  if (thTotal) thTotal.textContent = shortYear + '年' + m + '月总计';
+  const contractBody = document.getElementById('contract-body');
+  contractBody.innerHTML = '';
+  let totalIncome = 0, totalExpense = 0, totalProjectExpense = 0;
+  const paybackSettings = loadPaybackSettings();
+  const excludedItems = loadExcludeItems();
+  const rowFilterState = loadRowFilter();
+  // 判断项目是否应排除出合计（排除合计 或 行筛选隐藏）
+  function isHiddenFromTotal(name) {
+    return excludedItems.includes(name) || rowFilterState[name] === false;
+  }
+  contractData.forEach((d) => {
+    const startDate = new Date(d.contract_start + '-01');
+    const monthsOperated = (refDate.getFullYear() - startDate.getFullYear()) * 12 + (refDate.getMonth() - startDate.getMonth());
+    d.monthsOperated = Math.max(monthsOperated, 1);
+    d.progress = Math.min((d.monthsOperated / d.contract_months) * 100, 100);
+    d.monthlyIncome = d.income;
+    d.monthlyExpense = d.expense;
+    d.netIncome = d.income - d.expense;
+    // 预计回本收入(月) = 至今投入支出 / 合同年限
+    const cumDataForPayback = getCumulativeData();
+    const cumInvestment = (cumDataForPayback[d.name] && cumDataForPayback[d.name].investment) ? cumDataForPayback[d.name].investment : (d.projectExpense * d.monthsOperated);
+    d.monthlyPayback = contractSettings[d.name]?.monthly_payback || paybackSettings[d.name] || (cumInvestment / d.contract_months);
+    if (d.netIncome >= d.monthlyPayback) { d.status = 'safe'; d.statusText = '回本良好'; }
+    else { d.status = 'warn'; d.statusText = '回本困难'; }
+    if (d.progress <= 30) d.progressColor = 'green';
+    else if (d.progress <= 70) d.progressColor = 'blue';
+    else if (d.progress <= 90) d.progressColor = 'orange';
+    else d.progressColor = 'red';
+  });
+  contractData.sort((a, b) => {
+    if (a.status === 'safe' && b.status !== 'safe') return -1;
+    if (a.status !== 'safe' && b.status === 'safe') return 1;
+    return b.netIncome - a.netIncome;
+  });
+  contractData.forEach((d, idx) => {
+    const catColor = d.cat === '高校' ? '#e8f7ff' : d.cat === '公寓' ? '#e8ffea' : d.cat === '医院' ? '#fff3f0' : '#f2f3f5';
+    const catText = d.cat === '高校' ? '#165dff' : d.cat === '公寓' ? '#00b42a' : d.cat === '医院' ? '#d91a1a' : '#86909c';
+    const [y,m] = d.contract_start.split('-');
+    const startLabel = y + '年' + parseInt(m) + '月';
+    const isExcluded = excludedItems.includes(d.name);
+    const isRowHidden = rowFilterState[d.name] === false;
+    // 排除项和行筛选隐藏项不参与合计
+    if (!isHiddenFromTotal(d.name)) {
+      totalIncome += d.monthlyIncome;
+      totalExpense += d.monthlyExpense;
+      totalProjectExpense += d.projectExpense;
+    }
+    let rowClass = '';
+    if (isRowHidden) rowClass = 'row-hidden';
+    else if (isExcluded) rowClass = 'row-excluded';
+    else if (d.type === 'expense') rowClass = 'row-expense';
+    else if (d.type === 'exclude') rowClass = 'row-exclude';
+    else if (d.netIncome < 0) rowClass = 'row-expense';
+    const netClass = d.netIncome >= 0 ? 'net-positive' : 'net-negative';
+    // 至今累计：从 ALL_MONTHS_DATA 按月结构中汇总所有月份的收支
+    let cumulative;
+    const cumData = getCumulativeData();
+    // 至今项目支出：从 ALL_MONTHS_DATA 汇总所有月份的投入
+    let cumulativeProjectExpense;
+    if (cumData[d.name]) {
+      cumulative = cumData[d.name].income - cumData[d.name].expense;
+      cumulativeProjectExpense = cumData[d.name].investment || 0;
+    } else {
+      cumulative = d.netIncome * d.monthsOperated;
+      cumulativeProjectExpense = d.projectExpense * d.monthsOperated;
+    }
+    const cumClass = cumulative >= 0 ? 'net-positive' : 'net-negative';
+    const projExpClass = d.projectExpense >= 0 ? '' : 'net-negative';
+    const cumProjExpClass = cumulativeProjectExpense >= 0 ? '' : 'net-negative';
+    // 最终结算 = 当月总计
+    const settlement = d.netIncome;
+    contractBody.innerHTML += '<tr class="' + rowClass + '"><td>' + (idx+1) + '</td><td class="proj-name">' + d.name + '</td><td><span style="background:' + catColor + ';color:' + catText + ';padding:2px 8px;border-radius:4px;font-size:12px;">' + d.cat + '</span></td><td>' + startLabel + '</td><td>' + d.share_pct + '%</td><td class="num">' + d.contract_months + '</td><td class="num">' + d.monthsOperated + '</td><td><div class="progress-cell"><div class="progress-bar"><div class="progress-fill ' + d.progressColor + '" style="width:' + d.progress.toFixed(1) + '%"></div></div><span class="progress-text">' + d.progress.toFixed(0) + '%</span></div></td><td class="num income-cell">¥' + fmt(d.income) + '</td><td class="num expense-cell">¥' + fmt(d.expense) + '</td><td class="num net-cell ' + netClass + '">¥' + fmt(d.netIncome) + '</td><td class="num net-cell ' + cumClass + '">¥' + fmt(cumulative) + '</td><td class="num expense-cell">¥' + fmt(d.projectExpense) + '</td><td class="num expense-cell">¥' + fmt(cumulativeProjectExpense) + '</td><td class="num net-cell ' + netClass + '">¥' + fmt(settlement) + '</td><td class="num">¥' + fmt(d.monthlyPayback) + '</td><td><span class="' + d.status + '" style="padding:2px 10px;border-radius:4px;font-size:12px;background:' + (d.status==='safe'?'#e8ffea':'#fff3f0') + '">' + d.statusText + '</span></td></tr>';
+  });
+  const totalNet = totalIncome - totalExpense;
+  const totalNetClass = totalNet >= 0 ? 'net-positive' : 'net-negative';
+  // 至今累计合计：从 ALL_MONTHS_DATA 按月结构中汇总
+  let totalCumulative;
+  // 至今项目支出合计
+  let totalCumulativeProjectExpense;
+  const cumDataAll = getCumulativeData();
+  if (Object.keys(cumDataAll).length > 0) {
+    totalCumulative = contractData.reduce((s, d) => {
+      if (isHiddenFromTotal(d.name)) return s;
+      const allData = cumDataAll[d.name];
+      return s + (allData ? (allData.income - allData.expense) : d.netIncome * d.monthsOperated);
+    }, 0);
+    totalCumulativeProjectExpense = contractData.reduce((s, d) => {
+      if (isHiddenFromTotal(d.name)) return s;
+      const allData = cumDataAll[d.name];
+      return s + (allData ? (allData.investment || 0) : d.projectExpense * d.monthsOperated);
+    }, 0);
+  } else {
+    totalCumulative = contractData.reduce((s, d) => isHiddenFromTotal(d.name) ? s : s + (d.netIncome * d.monthsOperated), 0);
+    totalCumulativeProjectExpense = contractData.reduce((s, d) => isHiddenFromTotal(d.name) ? s : s + (d.projectExpense * d.monthsOperated), 0);
+  }
+  const totalCumClass = totalCumulative >= 0 ? 'net-positive' : 'net-negative';
+  // 最终结算合计 = 当月总计合计
+  contractBody.innerHTML += '<tr class="settlement-row"><td></td><td class="proj-name" style="color:#1d2129">合计</td><td></td><td></td><td></td><td></td><td></td><td></td><td class="num income-cell" style="color:#1d2129">¥' + fmt(totalIncome) + '</td><td class="num expense-cell" style="color:#1d2129">¥' + fmt(totalExpense) + '</td><td class="num net-cell ' + totalNetClass + '" style="color:#1d2129;font-weight:700;">¥' + fmt(totalNet) + '</td><td class="num net-cell ' + totalCumClass + '" style="color:#1d2129;font-weight:700;">¥' + fmt(totalCumulative) + '</td><td class="num expense-cell" style="color:#1d2129;font-weight:700;">¥' + fmt(totalProjectExpense) + '</td><td class="num expense-cell" style="color:#1d2129;font-weight:700;">¥' + fmt(totalCumulativeProjectExpense) + '</td><td class="num net-cell ' + totalNetClass + '" style="color:#1d2129;font-weight:700;">¥' + fmt(totalNet) + '</td><td class="num net-cell ' + totalNetClass + '" style="color:#1d2129;font-weight:700;">¥' + fmt(totalNet) + '</td><td></td></tr>';
+  applyColFilter();
+  applyRowFilter();
+}
+
+// ============== 合同运营分析表 列筛选功能 ==============
+const COL_FILTER_KEY = 'contract_col_filter_v1';
+const COL_DEFINITIONS = [
+  { key: 'idx', label: '序号', required: true },
+  { key: 'name', label: '项目名称', required: true },
+  { key: 'cat', label: '类别' },
+  { key: 'contract', label: '合同时间' },
+  { key: 'share', label: '股份占比' },
+  { key: 'years', label: '合同年限' },
+  { key: 'operated', label: '已运营' },
+  { key: 'progress', label: '运营进度' },
+  { key: 'income', label: '当月收入' },
+  { key: 'expense', label: '当月支出' },
+  { key: 'total', label: '当月总计' },
+  { key: 'cumulative', label: '至今累计' },
+  { key: 'invest', label: '投入支出' },
+  { key: 'cumInvest', label: '至今投入支出' },
+  { key: 'settlement', label: '最终结算' },
+  { key: 'payback', label: '预计回本收入(月)' },
+  { key: 'status', label: '回本状态' }
+];
+
+function loadColFilter() {
+  try { return JSON.parse(localStorage.getItem(COL_FILTER_KEY)) || {}; } catch(e) { return {}; }
+}
+function saveColFilter(state) {
+  localStorage.setItem(COL_FILTER_KEY, JSON.stringify(state));
+}
+
+function initColFilterPanel() {
+  const panel = document.getElementById('colFilterPanel');
+  if (!panel) return;
+  const current = loadColFilter();
+  let html = '';
+  COL_DEFINITIONS.forEach(col => {
+    const checked = current[col.key] !== false; // 默认显示
+    const disabled = col.required ? ' disabled' : '';
+    html += '<div class="col-filter-item"><input type="checkbox" id="cf-' + col.key + '" data-col="' + col.key + '"' + (checked ? ' checked' : '') + disabled + '><label for="cf-' + col.key + '">' + col.label + '</label></div>';
+  });
+  panel.innerHTML = html;
+  // 绑定事件
+  panel.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', function() {
+      const colKey = this.dataset.col;
+      const state = loadColFilter();
+      state[colKey] = this.checked;
+      saveColFilter(state);
+      applyColFilter();
+    });
+  });
+}
+
+function applyColFilter() {
+  const state = loadColFilter();
+  const table = document.getElementById('contractTable');
+  if (!table) return;
+  const colKeys = COL_DEFINITIONS.map(c => c.key);
+  // 遍历每一行（thead + tbody）
+  table.querySelectorAll('tr').forEach(tr => {
+    const cells = tr.querySelectorAll('th, td');
+    cells.forEach((cell, idx) => {
+      if (idx < colKeys.length) {
+        const colKey = colKeys[idx];
+        if (state[colKey] === false) {
+          cell.classList.add('col-hidden');
+        } else {
+          cell.classList.remove('col-hidden');
+        }
+      }
+    });
+  });
+}
+
+function toggleColFilter() {
+  const panel = document.getElementById('colFilterPanel');
+  if (!panel) return;
+  if (panel.style.display === 'none') {
+    panel.style.display = 'block';
+  } else {
+    panel.style.display = 'none';
+  }
+}
+
+// 点击面板外部关闭
+document.addEventListener('click', function(e) {
+  const btn = document.getElementById('colFilterBtn');
+  const panel = document.getElementById('colFilterPanel');
+  if (!btn || !panel) return;
+  if (!btn.contains(e.target) && !panel.contains(e.target)) {
+    panel.style.display = 'none';
+  }
+});
+
+// ============== 合同运营分析表 合计排除项功能 ==============
+const EXCLUDE_KEY = 'contract_exclude_v1';
+
+function loadExcludeItems() {
+  try { return JSON.parse(localStorage.getItem(EXCLUDE_KEY)) || []; } catch(e) { return []; }
+}
+function saveExcludeItems(items) {
+  localStorage.setItem(EXCLUDE_KEY, JSON.stringify(items));
+}
+
+function toggleExcludePanel() {
+  const panel = document.getElementById('excludePanel');
+  if (!panel) return;
+  if (panel.style.display === 'none') {
+    initExcludePanel();
+    panel.style.display = 'block';
+  } else {
+    panel.style.display = 'none';
+  }
+}
+
+function initExcludePanel() {
+  const panel = document.getElementById('excludePanel');
+  if (!panel) return;
+  const excluded = loadExcludeItems();
+  const projects = (DATA.proj_ranking || []).map(p => p.name);
+  let html = '<div class="exclude-hint">勾选的项目不参与合计行计算</div><div class="exclude-panel">';
+  projects.forEach(name => {
+    const isExcluded = excluded.includes(name);
+    html += '<div class="exclude-item' + (isExcluded ? ' excluded' : '') + '"><input type="checkbox" id="ex-' + name + '" data-name="' + name + '"' + (isExcluded ? ' checked' : '') + '><label for="ex-' + name + '">' + name + '</label></div>';
+  });
+  html += '</div>';
+  panel.innerHTML = html;
+  // 绑定事件
+  panel.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', function() {
+      const name = this.dataset.name;
+      let items = loadExcludeItems();
+      if (this.checked) {
+        if (!items.includes(name)) items.push(name);
+      } else {
+        items = items.filter(n => n !== name);
+      }
+      saveExcludeItems(items);
+      // 更新当前行的样式
+      const itemDiv = this.closest('.exclude-item');
+      if (this.checked) {
+        itemDiv.classList.add('excluded');
+      } else {
+        itemDiv.classList.remove('excluded');
+      }
+      // 重新渲染合同表
+      renderContractTable();
+    });
+  });
+}
+
+// 点击排除面板外部关闭
+document.addEventListener('click', function(e) {
+  const btn = document.getElementById('excludeBtn');
+  const panel = document.getElementById('excludePanel');
+  if (!btn || !panel) return;
+  if (!btn.contains(e.target) && !panel.contains(e.target)) {
+    panel.style.display = 'none';
+  }
+});
+
+// ============== 合同运营分析表 行筛选功能 ==============
+const ROW_FILTER_KEY = 'contract_row_filter_v1';
+
+function loadRowFilter() {
+  try { return JSON.parse(localStorage.getItem(ROW_FILTER_KEY)) || {}; } catch(e) { return {}; }
+}
+function saveRowFilter(state) {
+  localStorage.setItem(ROW_FILTER_KEY, JSON.stringify(state));
+}
+
+function toggleRowFilterPanel() {
+  const panel = document.getElementById('rowFilterPanel');
+  if (!panel) return;
+  if (panel.style.display === 'none') {
+    initRowFilterPanel();
+    panel.style.display = 'block';
+  } else {
+    panel.style.display = 'none';
+  }
+}
+
+function initRowFilterPanel() {
+  const panel = document.getElementById('rowFilterPanel');
+  if (!panel) return;
+  const current = loadRowFilter();
+  const projects = (DATA.proj_ranking || []).map(p => p.name);
+  // 全选/全不选状态
+  const allChecked = projects.every(n => current[n] !== false);
+  let html = '<div class="rowfilter-hint">取消勾选的项目行将隐藏不显示</div>';
+  html += '<div style="padding-bottom:6px;margin-bottom:6px;border-bottom:1px solid #f2f3f5;">';
+  html += '<label style="font-size:12px;color:#722ed1;cursor:pointer;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="rowFilterAll"' + (allChecked ? ' checked' : '') + ' style="accent-color:#722ed1;cursor:pointer;"> 全选/全不选</label>';
+  html += '</div><div class="rowfilter-panel">';
+  projects.forEach(name => {
+    const checked = current[name] !== false;
+    html += '<div class="rowfilter-item"><input type="checkbox" id="rf-' + name + '" data-name="' + name + '"' + (checked ? ' checked' : '') + '><label for="rf-' + name + '">' + name + '</label></div>';
+  });
+  html += '</div>';
+  panel.innerHTML = html;
+  // 单项绑定
+  panel.querySelectorAll('.rowfilter-item input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', function() {
+      const name = this.dataset.name;
+      const state = loadRowFilter();
+      state[name] = this.checked;
+      saveRowFilter(state);
+      updateRowFilterAllState();
+      applyRowFilter();
+    });
+  });
+  // 全选绑定
+  const allCb = document.getElementById('rowFilterAll');
+  if (allCb) {
+    allCb.addEventListener('change', function() {
+      const state = {};
+      projects.forEach(n => { state[n] = this.checked; });
+      saveRowFilter(state);
+      panel.querySelectorAll('.rowfilter-item input[type="checkbox"]').forEach(cb => {
+        cb.checked = allCb.checked;
+      });
+      applyRowFilter();
+    });
+  }
+}
+
+function updateRowFilterAllState() {
+  const projects = (DATA.proj_ranking || []).map(p => p.name);
+  const current = loadRowFilter();
+  const allCb = document.getElementById('rowFilterAll');
+  if (allCb) {
+    allCb.checked = projects.every(n => current[n] !== false);
+  }
+}
+
+function applyRowFilter() {
+  const state = loadRowFilter();
+  const table = document.getElementById('contractTable');
+  if (!table) return;
+  const rows = table.querySelectorAll('tbody tr');
+  rows.forEach(tr => {
+    const nameCell = tr.querySelector('td.proj-name');
+    if (!nameCell) return;
+    const name = nameCell.textContent.trim();
+    if (state[name] === false) {
+      tr.classList.add('row-hidden');
+    } else {
+      tr.classList.remove('row-hidden');
+    }
+  });
+}
+
+// 点击行筛选面板外部关闭
+document.addEventListener('click', function(e) {
+  const btn = document.getElementById('rowFilterBtn');
+  const panel = document.getElementById('rowFilterPanel');
+  if (!btn || !panel) return;
+  if (!btn.contains(e.target) && !panel.contains(e.target)) {
+    panel.style.display = 'none';
+  }
+});
+
+// ============== 合同运营分析表 导出功能 ==============
+
+function exportContractXLSX() {
+  const table = document.getElementById('contractTable');
+  if (!table) { showToast('未找到合同运营分析表', 'error'); return; }
+  const colState = loadColFilter();
+  const colKeys = COL_DEFINITIONS.map(c => c.key);
+  // 获取可见列索引
+  const visibleCols = [];
+  colKeys.forEach((key, idx) => {
+    if (colState[key] !== false) visibleCols.push(idx);
+  });
+  // 构建导出数据
+  const wsData = [];
+  // 表头行
+  const headerRow = [];
+  visibleCols.forEach(idx => { headerRow.push(COL_DEFINITIONS[idx].label); });
+  wsData.push(headerRow);
+  // 数据行：遍历tbody的tr
+  const rowFilterState = loadRowFilter();
+  const rows = table.querySelectorAll('tbody tr');
+  rows.forEach(tr => {
+    // 跳过行筛选隐藏的行
+    const nameCell = tr.querySelector('td.proj-name');
+    if (nameCell && rowFilterState[nameCell.textContent.trim()] === false) return;
+    const cells = tr.querySelectorAll('td');
+    const rowData = [];
+    visibleCols.forEach(idx => {
+      if (idx < cells.length) {
+        let text = cells[idx].textContent.trim().replace(/^¥/, '');
+        // 尝试转为数字
+        const num = parseFloat(text.replace(/,/g, ''));
+        if (!isNaN(num) && text.match(/[\d,]+\.?\d*%/)) {
+          // 百分比字符串保持原样
+          rowData.push(text);
+        } else if (!isNaN(num) && text !== '' && text !== '-') {
+          rowData.push(num);
+        } else {
+          rowData.push(text);
+        }
+      } else {
+        rowData.push('');
+      }
+    });
+    wsData.push(rowData);
+  });
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  // 设置列宽
+  ws['!cols'] = visibleCols.map(idx => {
+    const label = COL_DEFINITIONS[idx].label;
+    return { wch: Math.max(label.length * 2 + 4, 12) };
+  });
+  XLSX.utils.book_append_sheet(wb, ws, '合同运营分析');
+  // 生成文件名含当前年月
+  const year = getSelectedYear();
+  const month = getSelectedMonth();
+  XLSX.writeFile(wb, '合同运营分析表_' + year + '年' + month + '月.xlsx');
+  showToast('XLSX导出成功！', 'success');
+}
+
+function exportContractPNG() {
+  const table = document.getElementById('contractTable');
+  if (!table) { showToast('未找到合同运营分析表', 'error'); return; }
+  if (typeof html2canvas === 'undefined') { showToast('html2canvas库未加载，请检查网络', 'error'); return; }
+  showToast('正在生成PNG图片，请稍候...', 'info');
+
+  // 保存需要临时修改的元素的原始样式
+  const tableScroll = table.closest('.table-scroll');
+  const card = table.closest('.card.full');
+  const origStyles = [];
+
+  // 收集并修改所有需要临时调整的元素
+  function saveStyle(el) {
+    if (!el) return;
+    origStyles.push({ el: el, cssText: el.style.cssText });
+  }
+
+  if (card) saveStyle(card);
+  if (tableScroll) saveStyle(tableScroll);
+
+  // 1. card临时设置为脱离文档流、无溢出限制
+  if (card) {
+    card.style.position = 'relative';
+    card.style.overflow = 'visible';
+  }
+  // 2. table-scroll临时移除滚动限制
+  if (tableScroll) {
+    tableScroll.style.overflow = 'visible';
+    tableScroll.style.overflowX = 'visible';
+    tableScroll.style.overflowY = 'visible';
+    tableScroll.style.maxHeight = 'none';
+    tableScroll.style.height = 'auto';
+  }
+
+  // 等待样式生效
+  setTimeout(function() {
+    html2canvas(table, {
+      backgroundColor: '#ffffff',
+      scale: 2,
+      useCORS: true,
+      logging: true,
+      scrollX: 0,
+      scrollY: 0,
+      width: table.scrollWidth,
+      height: table.scrollHeight
+    }).then(function(canvas) {
+      // 恢复所有样式
+      origStyles.forEach(function(item) { item.el.style.cssText = item.cssText; });
+      const link = document.createElement('a');
+      const year = getSelectedYear();
+      const month = getSelectedMonth();
+      link.download = '合同运营分析表_' + year + '年' + month + '月.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      showToast('PNG导出成功！', 'success');
+    }).catch(function(err) {
+      // 恢复所有样式
+      origStyles.forEach(function(item) { item.el.style.cssText = item.cssText; });
+      console.error('PNG导出失败:', err);
+      showToast('PNG导出失败: ' + (err.message || err), 'error');
+    });
+  }, 200);
+}
+
+function renderInsights() {
+  const projData = DATA.proj_ranking;
+  const insightList = document.getElementById('insight-list');
+  insightList.innerHTML = '';
+  if (projData.length > 0) {
+    const projectIncome = DATA.summary.project_income || 1;
+    const top3Income = projData.slice(0, Math.min(3, projData.length)).reduce((s,p) => s+p.income, 0);
+    const top3Pct = (top3Income / projectIncome * 100).toFixed(1);
+    const uniCat = DATA.cat_ranking.find(c => c.name === '高校');
+    const uniPct = (uniCat?.income / projectIncome * 100).toFixed(1);
+    insightList.innerHTML += '<li>Top 3项目收入占比 <strong>' + top3Pct + '%</strong>，头部集中度高</li>';
+    insightList.innerHTML += '<li>高校类项目收入占比 <strong>' + uniPct + '%</strong>，是核心收入来源</li>';
+  } else {
+    insightList.innerHTML = '<li>暂无数据，请上传Excel文件</li>';
+  }
+}
+
+function renderAll() {
+  updateKPIs();
+  renderCharts();
+  renderTable();
+  renderInsights();
+  renderContractTable();
+  applyColFilter();
+  initTrendControls();
+  renderTrendChart();
+  updateGlobalFilterBadge();
+}
+
+function showToast(message, type = 'info') {
+  const toast = document.getElementById('toast');
+  toast.textContent = message;
+  toast.className = 'toast ' + type + ' show';
+  setTimeout(() => { toast.classList.remove('show'); }, 3000);
+}
+
+// Export function
+function exportReport() {
+  if (DATA.proj_ranking.length === 0) {
+    showToast('暂无数据可导出', 'error');
+    return;
+  }
+  const wb = XLSX.utils.book_new();
+  const wsData = [['序号', '项目名称', '类型', '类别', '收入', '支出', '净收入', '投入支出']];
+  const catMap = {
+    '锦州医科大学医疗学院':'高校','华东师范大学':'高校','上海立达学院':'高校','银川科技学院':'高校',
+    '成都文理学院':'高校','西安工商学院':'高校','昆明传媒学院':'高校','首都师范科德学院':'高校',
+    '南京航空航天大学金城学院':'高校','山东德州近博技工学校':'高校','会理现代职业技术学院':'高校',
+    '四海家园':'公寓','有巢国际公寓芦恒路店':'公寓','有巢国际公寓吴中路店':'公寓',
+    '有巢公寓北京总部基地店':'公寓','悦庭公寓':'公寓','中海友里公寓（上海金沙江路店）':'公寓',
+    '乐居雍萃浦电公寓':'公寓','龙岩人民医院':'医院'
+  };
+  DATA.proj_ranking.forEach((p, i) => {
+    const cat = catMap[p.name] || '其他';
+    const net = (p.income || 0) - (p.expense || 0);
+    wsData.push([i+1, p.name, p.type || 'income', cat, p.income || 0, p.expense || 0, net, p.investment || 0]);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  XLSX.utils.book_append_sheet(wb, ws, '收入明细');
+  XLSX.writeFile(wb, '经管报表_导出.xlsx');
+  showToast('导出成功！', 'success');
+}
+
+// Responsive
+window.addEventListener('resize', () => { charts.forEach(c => c.resize()); });
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+  initColFilterPanel();
+  renderAll();
+  renderSaveList();
+  autoRestoreFromCloud();
+});
+
+// ============== localStorage 保存/加载/删除 ==============
+const SAVE_LIST_KEY = 'jingguan_save_list';
+const SAVE_DATA_PREFIX = 'jingguan_save_data_';
+
+function getSaveList() {
+  try {
+    const saved = localStorage.getItem(SAVE_LIST_KEY);
+    return saved ? JSON.parse(saved) : [];
+  } catch (e) { return []; }
+}
+
+function saveSaveList(list) {
+  try {
+    localStorage.setItem(SAVE_LIST_KEY, JSON.stringify(list));
+  } catch (e) { /* ignore */ }
+}
+
+function saveToStorage() {
+  if (DATA.proj_ranking.length === 0) {
+    showToast('暂无数据可保存', 'error');
+    return;
+  }
+
+  const name = prompt('请输入保存名称：', '报表备份_' + new Date().toLocaleDateString('zh-CN'));
+  if (!name) return;
+
+  const id = Date.now().toString();
+  const saveData = {
+    version: '2.0',
+    savedAt: new Date().toISOString(),
+    name: name,
+    data: DATA,
+    allMonthsData: ALL_MONTHS_DATA,
+    allDetailData: ALL_DETAIL_DATA,
+    contractSettings: loadContractSettings()
+  };
+
+  try {
+    localStorage.setItem(SAVE_DATA_PREFIX + id, JSON.stringify(saveData));
+    const list = getSaveList();
+    const size = (JSON.stringify(saveData).length / 1024).toFixed(1);
+    list.unshift({ id, name, date: new Date().toLocaleString('zh-CN'), size: size + ' KB' });
+    if (list.length > 10) {
+      const removed = list.pop();
+      localStorage.removeItem(SAVE_DATA_PREFIX + removed.id);
+    }
+    saveSaveList(list);
+    renderSaveList();
+    showToast('数据已保存！', 'success');
+  } catch (e) {
+    showToast('保存失败：' + e.message, 'error');
+  }
+}
+
+function loadSavedItem(id) {
+  try {
+    const saveDataStr = localStorage.getItem(SAVE_DATA_PREFIX + id);
+    if (!saveDataStr) { showToast('数据不存在或已被删除', 'error'); return; }
+    const saveData = JSON.parse(saveDataStr);
+    if (saveData.data && saveData.data.proj_ranking) {
+      DATA = saveData.data;
+      // 恢复 ALL_MONTHS_DATA（兼容旧格式）
+      if (saveData.allMonthsData) {
+        ALL_MONTHS_DATA = convertAllMonthsData(saveData.allMonthsData);
+      } else {
+        ALL_MONTHS_DATA = {};
+      }
+      // 恢复 ALL_DETAIL_DATA
+      if (saveData.allDetailData && Array.isArray(saveData.allDetailData)) {
+        ALL_DETAIL_DATA = saveData.allDetailData;
+      } else {
+        ALL_DETAIL_DATA = [];
+        if (DATA.proj_ranking) {
+          DATA.proj_ranking.forEach(p => {
+            if (p.detail && p.detail.length > 0) {
+              p.detail.forEach(d => {
+                ALL_DETAIL_DATA.push({ project: p.name, date: d.date || '', summary: d.summary || '', remark: d.remark || '', amount: d.amount || 0, type: d.type || 'income' });
+              });
+            }
+          });
+        }
+      }
+      initSearchMonthOptions();
+      // 恢复合同信息设置
+      if (saveData.contractSettings && Object.keys(saveData.contractSettings).length > 0) {
+        saveContractSettingsToStorage(saveData.contractSettings);
+      }
+      isDataUpdated = true;
+      document.getElementById('dataSourceBadge').className = 'data-source uploaded';
+      document.getElementById('dataSourceBadge').innerHTML = '📤 已加载: ' + saveData.name;
+      renderAll();
+      showToast('数据加载成功！', 'success');
+    } else { showToast('数据格式不正确', 'error'); }
+  } catch (err) { showToast('加载失败：' + err.message, 'error'); }
+}
+
+function deleteSavedItem(id) {
+  if (!confirm('确定要删除这条保存记录吗？')) return;
+  localStorage.removeItem(SAVE_DATA_PREFIX + id);
+  let list = getSaveList();
+  list = list.filter(item => item.id !== id);
+  saveSaveList(list);
+  renderSaveList();
+  showToast('已删除', 'info');
+}
+
+function renderSaveList() {
+  const list = getSaveList();
+  const container = document.getElementById('saveList');
+  if (list.length === 0) {
+    container.innerHTML = '<div class="empty-saves">暂无保存记录</div>';
+    return;
+  }
+  container.innerHTML = list.map(item =>
+    '<div class="save-item">' +
+      '<div>' +
+        '<div class="save-item-name">' + item.name + '</div>' +
+        '<div class="save-item-date">' + item.date + ' | ' + item.size + '</div>' +
+      '</div>' +
+      '<button class="save-item-load" onclick="loadSavedItem(\'' + item.id + '\')">加载</button>' +
+      '<button class="save-item-delete" onclick="deleteSavedItem(\'' + item.id + '\')">删除</button>' +
+    '</div>'
+  ).join('');
+}
+
+// ============== JSONBin.io 云端备份 ==============
+const CLOUD_API_KEY_STORAGE = 'jingguan_cloud_api_key';
+const CLOUD_BIN_ID_STORAGE = 'jingguan_cloud_bin_id';
+
+function getCloudApiKey() { return localStorage.getItem(CLOUD_API_KEY_STORAGE) || DEFAULT_CLOUD_API_KEY; }
+function getCloudBinId() {
+  const saved = localStorage.getItem(CLOUD_BIN_ID_STORAGE);
+  if (saved) return saved;
+  // localStorage 被清空时，使用代码中硬编码的 bin ID
+  if (DEFAULT_CLOUD_BIN_ID && DEFAULT_CLOUD_BIN_ID !== '__PLACEHOLDER__') {
+    return DEFAULT_CLOUD_BIN_ID;
+  }
+  return '';
+}
+function saveCloudApiKey(key) { localStorage.setItem(CLOUD_API_KEY_STORAGE, key); }
+function saveCloudBinId(id) { localStorage.setItem(CLOUD_BIN_ID_STORAGE, id); }
+
+// 默认值：硬编码到代码中，即使 localStorage 被清空也不影响
+// ⚠️ 第一次备份成功后会自动更新此值到文件中
+const DEFAULT_CLOUD_API_KEY = '$2a$10$hAdV7dPwOfZd3zhxXNsPkes4AEhT49k2b6w4PdvPkFcppNv46MDya';
+const DEFAULT_CLOUD_BIN_ID = '6a02c986250b1311c3399842';
+
+const CLOUD_API_URL = 'https://api.jsonbin.io/v3/b';
+const CLOUD_BACKUP_KEY = 'jingguan_report_202604';
+
+function setCloudStatus(text) {
+  const el = document.getElementById('cloudStatus');
+  if (el) el.textContent = text;
+}
+
+// 备份到云端
+async function backupToCloud() {
+  const btn = document.getElementById('cloudBackupBtn');
+  if (btn) btn.disabled = true;
+  setCloudStatus('☁️ 正在备份到云端...');
+
+  try {
+    if (DATA.proj_ranking.length === 0) {
+      throw new Error('没有数据可备份，请先上传Excel文件');
+    }
+
+    const backupData = {
+      type: 'jingguan-report',
+      key: CLOUD_BACKUP_KEY,
+      version: '2.0',
+      timestamp: new Date().toISOString(),
+      data: DATA,
+      allMonthsData: ALL_MONTHS_DATA,
+      allDetailData: ALL_DETAIL_DATA,
+      contractSettings: loadContractSettings()
+    };
+
+    const jsonContent = JSON.stringify(backupData);
+    const apiKey = getCloudApiKey();
+    let binId = getCloudBinId();
+
+    let url, method;
+    if (binId) {
+      url = CLOUD_API_URL + '/' + binId;
+      method = 'PUT';
+    } else {
+      url = CLOUD_API_URL;
+      method = 'POST';
+    }
+
+    const headers = { 'Content-Type': 'application/json' };
+    if (apiKey) headers['X-Master-Key'] = apiKey;
+
+    let response = await fetch(url, { method, headers, body: jsonContent });
+
+    // 如果 bin 不存在，创建新的
+    if (!response.ok && response.status === 404 && binId) {
+      url = CLOUD_API_URL;
+      method = 'POST';
+      response = await fetch(url, { method, headers, body: jsonContent });
+      binId = null;
+    }
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.message || ('HTTP ' + response.status));
+    }
+
+    const result = await response.json();
+    if (!binId) {
+      saveCloudBinId(result.metadata.id);
+    }
+
+    // 同时保存到 localStorage
+    try {
+      const id = Date.now().toString();
+      const saveData = { version: '2.0', savedAt: new Date().toISOString(), name: '云端自动备份', data: DATA, allMonthsData: ALL_MONTHS_DATA, allDetailData: ALL_DETAIL_DATA, contractSettings: loadContractSettings() };
+      localStorage.setItem(SAVE_DATA_PREFIX + id, JSON.stringify(saveData));
+      const list = getSaveList();
+      const size = (JSON.stringify(saveData).length / 1024).toFixed(1);
+      list.unshift({ id, name: '☁️ 云端备份', date: new Date().toLocaleString('zh-CN'), size: size + ' KB' });
+      if (list.length > 10) { const removed = list.pop(); localStorage.removeItem(SAVE_DATA_PREFIX + removed.id); }
+      saveSaveList(list);
+      renderSaveList();
+    } catch (e) { /* ignore */ }
+
+    setCloudStatus('✅ 云端备份成功！');
+    showToast('数据已备份到云端！', 'success');
+
+  } catch (err) {
+    setCloudStatus('❌ 备份失败：' + err.message);
+    showToast('云端备份失败：' + err.message, 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// 从云端恢复
+async function restoreFromCloud() {
+  const btn = document.getElementById('cloudRestoreBtn');
+  if (btn) btn.disabled = true;
+  setCloudStatus('⬇️ 正在从云端恢复...');
+
+  try {
+    const binId = getCloudBinId();
+    if (!binId) {
+      throw new Error('未找到云端备份ID，请先点击"备份到云端"');
+    }
+
+    const apiKey = getCloudApiKey();
+    const headers = {};
+    if (apiKey) headers['X-Master-Key'] = apiKey;
+
+    const response = await fetch(CLOUD_API_URL + '/' + binId, { method: 'GET', headers });
+
+    if (!response.ok) {
+      if (response.status === 404) throw new Error('云端没有备份数据，请先备份');
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.message || ('HTTP ' + response.status));
+    }
+
+    const result = await response.json();
+    const backupData = result.record || result;
+
+    // 验证数据
+    if (!backupData.data || !backupData.data.proj_ranking) {
+      throw new Error('云端数据格式不正确');
+    }
+
+    DATA = backupData.data;
+    // 恢复 ALL_MONTHS_DATA：优先使用备份中的全量数据，兼容旧格式
+    if (backupData.allMonthsData) {
+      ALL_MONTHS_DATA = convertAllMonthsData(backupData.allMonthsData);
+    } else if (DATA.proj_ranking && DATA.proj_ranking.length > 0) {
+      // 旧版备份没有 allMonthsData，从 detail 中重建（归入当前选中月份）
+      ALL_MONTHS_DATA = {};
+      const monthKey = getSelectedMonthKey();
+      ALL_MONTHS_DATA[monthKey] = {};
+      DATA.proj_ranking.forEach(p => {
+        if (p.detail && p.detail.length > 0) {
+          let cumIncome = 0, cumExpense = 0;
+          p.detail.forEach(d => {
+            if (d.type === 'income') cumIncome += d.amount || 0;
+            else if (d.type === 'expense') cumExpense += d.amount || 0;
+          });
+          ALL_MONTHS_DATA[monthKey][p.name] = { income: cumIncome, expense: cumExpense };
+        } else {
+          ALL_MONTHS_DATA[monthKey][p.name] = { income: p.income || 0, expense: p.expense || 0 };
+        }
+      });
+    }
+    // 恢复 ALL_DETAIL_DATA
+    if (backupData.allDetailData && Array.isArray(backupData.allDetailData)) {
+      ALL_DETAIL_DATA = backupData.allDetailData;
+    } else if (DATA.proj_ranking && DATA.proj_ranking.length > 0) {
+      // 旧版备份没有 allDetailData，从 proj_ranking 的 detail 中重建
+      ALL_DETAIL_DATA = [];
+      DATA.proj_ranking.forEach(p => {
+        if (p.detail && p.detail.length > 0) {
+          p.detail.forEach(d => {
+            ALL_DETAIL_DATA.push({ project: p.name, date: d.date || '', summary: d.summary || '', remark: d.remark || '', amount: d.amount || 0, type: d.type || 'income' });
+          });
+        }
+      });
+    }
+    // 恢复合同信息设置
+    if (backupData.contractSettings && Object.keys(backupData.contractSettings).length > 0) {
+      saveContractSettingsToStorage(backupData.contractSettings);
+    }
+    isDataUpdated = true;
+    document.getElementById('dataSourceBadge').className = 'data-source uploaded';
+    document.getElementById('dataSourceBadge').innerHTML = '☁️ 已从云端恢复';
+    renderAll();
+    initSearchMonthOptions();
+
+    // 同步到 localStorage
+    try {
+      const id = Date.now().toString();
+      const saveData = { version: '2.0', savedAt: new Date().toISOString(), name: '云端恢复', data: DATA, allMonthsData: ALL_MONTHS_DATA, allDetailData: ALL_DETAIL_DATA, contractSettings: loadContractSettings() };
+      localStorage.setItem(SAVE_DATA_PREFIX + id, JSON.stringify(saveData));
+      const list = getSaveList();
+      const size = (JSON.stringify(saveData).length / 1024).toFixed(1);
+      list.unshift({ id, name: '⬇️ 云端恢复', date: new Date().toLocaleString('zh-CN'), size: size + ' KB' });
+      if (list.length > 10) { const removed = list.pop(); localStorage.removeItem(SAVE_DATA_PREFIX + removed.id); }
+      saveSaveList(list);
+      renderSaveList();
+    } catch (e) { /* ignore */ }
+
+    setCloudStatus('✅ 云端数据已恢复！');
+    showToast('数据已从云端恢复！', 'success');
+
+  } catch (err) {
+    setCloudStatus('❌ 恢复失败：' + err.message);
+    showToast('云端恢复失败：' + err.message, 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// 页面打开时自动从云端恢复
+async function autoRestoreFromCloud() {
+  const binId = getCloudBinId();
+  if (!binId) return;
+
+  const apiKey = getCloudApiKey();
+  const url = CLOUD_API_URL + '/' + binId + '/latest';
+
+  try {
+    // 使用 XMLHttpRequest，file:// 下比 fetch 更可靠
+    const result = await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', url, true);
+      if (apiKey) xhr.setRequestHeader('X-Master-Key', apiKey);
+      xhr.onload = function() {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try { resolve(JSON.parse(xhr.responseText)); } catch(e) { reject(e); }
+        } else {
+          reject(new Error('HTTP ' + xhr.status));
+        }
+      };
+      xhr.onerror = function() { reject(new Error('网络请求失败，可能是 file:// 协议限制')); };
+      xhr.ontimeout = function() { reject(new Error('请求超时')); };
+      xhr.timeout = 8000;
+      xhr.send();
+    });
+
+    const backupData = result.record || result;
+
+    if (!backupData.data || !backupData.data.proj_ranking) {
+      setCloudStatus('⚠️ 云端数据格式异常');
+      return;
+    }
+
+    if (DATA.proj_ranking.length === 0) {
+      DATA = backupData.data;
+      // 恢复 ALL_MONTHS_DATA（兼容旧格式）
+      if (backupData.allMonthsData) {
+        ALL_MONTHS_DATA = convertAllMonthsData(backupData.allMonthsData);
+      } else {
+        ALL_MONTHS_DATA = {};
+      }
+      // 恢复 ALL_DETAIL_DATA
+      if (backupData.allDetailData && Array.isArray(backupData.allDetailData)) {
+        ALL_DETAIL_DATA = backupData.allDetailData;
+      } else {
+        ALL_DETAIL_DATA = [];
+        if (DATA.proj_ranking) {
+          DATA.proj_ranking.forEach(p => {
+            if (p.detail && p.detail.length > 0) {
+              p.detail.forEach(d => {
+                ALL_DETAIL_DATA.push({ project: p.name, date: d.date || '', summary: d.summary || '', remark: d.remark || '', amount: d.amount || 0, type: d.type || 'income' });
+              });
+            }
+          });
+        }
+      }
+      // 恢复合同信息设置
+      if (backupData.contractSettings && Object.keys(backupData.contractSettings).length > 0) {
+        saveContractSettingsToStorage(backupData.contractSettings);
+      }
+      isDataUpdated = true;
+      document.getElementById('dataSourceBadge').className = 'data-source uploaded';
+      document.getElementById('dataSourceBadge').innerHTML = '☁️ 已自动恢复';
+      renderAll();
+      initSearchMonthOptions();
+      setCloudStatus('✅ 已自动从云端恢复数据 (' + new Date(backupData.timestamp).toLocaleString('zh-CN') + ')');
+    } else {
+      setCloudStatus('☁️ 云端备份可用，当前已有数据');
+    }
+  } catch (err) {
+    setCloudStatus('⚠️ 自动恢复失败: ' + err.message);
+  }
+}
+
+// ============== 清除云端数据 ==============
+
+// 第一步：弹出确认模态框
+function showClearCloudConfirm() {
+  const binId = getCloudBinId();
+  if (!binId) {
+    showToast('未找到云端备份，无需清除', 'info');
+    return;
+  }
+  // 重置输入框和按钮状态
+  const input = document.getElementById('clearCloudConfirmInput');
+  if (input) { input.value = ''; input.style.borderColor = '#e5e6eb'; }
+  const btn = document.getElementById('clearCloudConfirmBtn');
+  if (btn) { btn.disabled = true; btn.style.background = '#ccc'; btn.style.cursor = 'not-allowed'; }
+  // 显示模态框
+  document.getElementById('clearCloudModal').classList.add('show');
+}
+
+// 关闭确认模态框
+function closeClearCloudModal() {
+  document.getElementById('clearCloudModal').classList.remove('show');
+}
+
+// 监听确认输入框，仅当输入完全匹配时启用确认按钮
+function onClearCloudInput() {
+  const input = document.getElementById('clearCloudConfirmInput');
+  const btn = document.getElementById('clearCloudConfirmBtn');
+  const confirmed = input && input.value === '我确定删除云端数据';
+  if (btn) {
+    btn.disabled = !confirmed;
+    btn.style.background = confirmed ? '#d91a1a' : '#ccc';
+    btn.style.cursor = confirmed ? 'pointer' : 'not-allowed';
+  }
+}
+
+// 第二步：确认删除云端数据
+async function confirmClearCloud() {
+  const input = document.getElementById('clearCloudConfirmInput');
+  if (!input || input.value !== '我确定删除云端数据') {
+    showToast('确认文本输入不正确', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('clearCloudConfirmBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '删除中...'; }
+  setCloudStatus('🗑️ 正在清除云端数据...');
+
+  try {
+    const binId = getCloudBinId();
+    const apiKey = getCloudApiKey();
+    if (!binId) throw new Error('未找到云端备份ID');
+
+    // 调用 JSONBin DELETE API 删除云端 bin
+    const headers = {};
+    if (apiKey) headers['X-Master-Key'] = apiKey;
+
+    const response = await fetch(CLOUD_API_URL + '/' + binId, { method: 'DELETE', headers });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      // 404 说明已不存在，视为成功
+      if (response.status !== 404) {
+        throw new Error(errData.message || ('HTTP ' + response.status));
+      }
+    }
+
+    // 清除本地存储的 bin ID
+    localStorage.removeItem(CLOUD_BIN_ID_STORAGE);
+
+    closeClearCloudModal();
+    setCloudStatus('✅ 云端数据已清除');
+    showToast('云端备份数据已永久删除', 'success');
+
+  } catch (err) {
+    setCloudStatus('❌ 清除失败：' + err.message);
+    showToast('清除云端数据失败：' + err.message, 'error');
+    // 恢复按钮状态
+    if (btn) { btn.disabled = false; btn.textContent = '确认删除'; btn.style.background = '#d91a1a'; btn.style.cursor = 'pointer'; }
+  }
+}
+
+// ============== 订单明细搜索功能 ==============
+
+// 初始化搜索月份选择器
+function initSearchMonthOptions() {
+  const input = document.getElementById('searchMonth');
+  if (!input || ALL_DETAIL_DATA.length === 0) return;
+  const months = new Set();
+  ALL_DETAIL_DATA.forEach(d => {
+    if (d.date && d.date.length >= 7) months.add(d.date.substring(0, 7));
+  });
+  if (months.size === 0) return;
+  // 设置min/max让日历只显示有数据的月份范围
+  const sorted = Array.from(months).sort();
+  input.min = sorted[0] + '-01';
+  input.max = sorted[sorted.length - 1] + '-31';
+}
+
+// 搜索明细
+function searchDetail() {
+  const projectKeyword = (document.getElementById('searchProject').value || '').trim().toLowerCase();
+  const remarkKeyword = (document.getElementById('searchRemark').value || '').trim().toLowerCase();
+  const monthFilter = document.getElementById('searchMonth').value;
+  const typeFilter = document.getElementById('searchType').value;
+
+  let results = ALL_DETAIL_DATA.slice();
+
+  // 按项目关键词筛选
+  if (projectKeyword) {
+    results = results.filter(d => d.project.toLowerCase().includes(projectKeyword));
+  }
+  // 按备注/摘要关键词筛选
+  if (remarkKeyword) {
+    results = results.filter(d =>
+      (d.remark && d.remark.toLowerCase().includes(remarkKeyword)) ||
+      (d.summary && d.summary.toLowerCase().includes(remarkKeyword))
+    );
+  }
+  // 按月份筛选（精确到月，格式 YYYY-MM）
+  if (monthFilter) {
+    results = results.filter(d => d.date && d.date.startsWith(monthFilter));
+  }
+  // 按类型筛选
+  if (typeFilter) {
+    results = results.filter(d => d.type === typeFilter);
+  }
+
+  // 按日期降序排序
+  results.sort((a, b) => {
+    if (!a.date) return 1;
+    if (!b.date) return -1;
+    return b.date.localeCompare(a.date);
+  });
+
+  renderSearchResults(results, projectKeyword, remarkKeyword);
+}
+
+// 渲染搜索结果
+function renderSearchResults(results, projectKeyword, remarkKeyword) {
+  const stats = document.getElementById('searchStats');
+  const empty = document.getElementById('searchEmpty');
+  const table = document.getElementById('searchResultTable');
+  const tbody = document.getElementById('searchResultBody');
+
+  if (results.length === 0) {
+    stats.innerHTML = '未找到匹配的明细记录';
+    empty.style.display = 'block';
+    empty.textContent = '未找到匹配的明细记录';
+    table.style.display = 'none';
+    return;
+  }
+
+  // 计算汇总
+  let totalIncome = 0, totalExpense = 0, totalInvestment = 0;
+  results.forEach(d => {
+    if (d.type === 'income') totalIncome += d.amount || 0;
+    else if (d.type === 'expense') totalExpense += d.amount || 0;
+    else if (d.type === 'investment') totalInvestment += d.amount || 0;
+  });
+
+  stats.innerHTML = '共 <strong>' + results.length + '</strong> 条记录 | 收入 <strong style="color:#d91a1a">¥' + totalIncome.toLocaleString() + '</strong> | 支出 <strong style="color:#00b42a">¥' + totalExpense.toLocaleString() + '</strong>' + (totalInvestment > 0 ? ' | 投入 <strong style="color:#ff7d00">¥' + totalInvestment.toLocaleString() + '</strong>' : '');
+
+  empty.style.display = 'none';
+  table.style.display = 'table';
+
+  // 渲染表格
+  const typeLabels = { income: '收入', expense: '支出', investment: '投入' };
+  const amountClasses = { income: 'amount-income', expense: 'amount-expense', investment: 'amount-investment' };
+
+  tbody.innerHTML = results.map(d => {
+    const typeLabel = typeLabels[d.type] || d.type;
+    const amountClass = amountClasses[d.type] || '';
+    const project = highlightKeyword(escapeHtml(d.project || ''), projectKeyword);
+    const remark = highlightKeyword(escapeHtml(d.remark || ''), remarkKeyword);
+    const summary = highlightKeyword(escapeHtml(d.summary || ''), remarkKeyword);
+    const amount = (d.type === 'expense' || d.type === 'investment') ? '-' + (d.amount || 0).toLocaleString() : '+' + (d.amount || 0).toLocaleString();
+
+    return '<tr>' +
+      '<td>' + (d.date || '-') + '</td>' +
+      '<td>' + project + '</td>' +
+      '<td><span class="' + (d.type === 'income' ? 'income-tag' : d.type === 'expense' ? 'expense-tag' : 'exclude-tag') + '">' + typeLabel + '</span></td>' +
+      '<td class="' + amountClass + '">' + amount + '</td>' +
+      '<td>' + (summary || '-') + '</td>' +
+      '<td>' + (remark || '-') + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+// 高亮关键词
+function highlightKeyword(text, keyword) {
+  if (!keyword) return text;
+  const regex = new RegExp('(' + keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+  return text.replace(regex, '<span class="search-highlight">$1</span>');
+}
+
+// HTML转义
+function escapeHtml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// 重置搜索
+function resetSearch() {
+  document.getElementById('searchProject').value = '';
+  document.getElementById('searchRemark').value = '';
+  document.getElementById('searchMonth').value = '';
+  document.getElementById('searchType').value = '';
+  document.getElementById('searchStats').innerHTML = '输入条件后点击搜索';
+  document.getElementById('searchEmpty').style.display = 'block';
+  document.getElementById('searchEmpty').textContent = '暂无搜索结果，请输入条件后搜索';
+  document.getElementById('searchResultTable').style.display = 'none';
+  document.getElementById('searchResultBody').innerHTML = '';
+}
+
+// ============== 右侧悬浮导航功能 ==============
+
+// 页内导航滚动
+function scrollToSection(sectionId) {
+  const element = document.getElementById(sectionId);
+  if (element) {
+    const offset = 80; // 顶部导航栏偏移
+    const elementPosition = element.getBoundingClientRect().top;
+    const offsetPosition = elementPosition + window.pageYOffset - offset;
+    window.scrollTo({
+      top: offsetPosition,
+      behavior: 'smooth'
+    });
+  }
+}
+
+// 滚动时高亮当前可见区域对应的导航项
+function updateFloatingNavActive() {
+  const navItems = document.querySelectorAll('.floating-nav-item[data-target]');
+  if (navItems.length === 0) return;
+
+  const scrollPos = window.scrollY + 120;
+  let activeTarget = null;
+
+  navItems.forEach(item => {
+    const targetId = item.getAttribute('data-target');
+    const targetEl = document.getElementById(targetId);
+    if (targetEl && targetEl.offsetTop <= scrollPos) {
+      activeTarget = targetId;
+    }
+  });
+
+  navItems.forEach(item => {
+    const targetId = item.getAttribute('data-target');
+    item.classList.toggle('active', targetId === activeTarget);
+  });
+}
+
+// 节流滚动监听
+let floatingNavScrollTimer = null;
+window.addEventListener('scroll', function() {
+  if (floatingNavScrollTimer) return;
+  floatingNavScrollTimer = setTimeout(function() {
+    updateFloatingNavActive();
+    floatingNavScrollTimer = null;
+  }, 100);
+}, { passive: true });
+
+</script>
+</body>
+</html>
