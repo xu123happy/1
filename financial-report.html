@@ -7,6 +7,7 @@
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'PingFang SC', 'Microsoft YaHei', -apple-system, sans-serif; background: #f0f2f5; color: #1d2129; }
@@ -3233,18 +3234,28 @@ async function backupToCloud() {
       throw new Error('没有数据可备份，请先上传Excel文件');
     }
 
+    // 完整备份数据（包含 allMonthsData 和 allDetailData）
     const backupData = {
       type: 'jingguan-report',
       key: CLOUD_BACKUP_KEY,
-      version: '2.0',
+      version: '2.2',
+      compressed: true,
       timestamp: new Date().toISOString(),
       data: DATA,
       allMonthsData: ALL_MONTHS_DATA,
       allDetailData: ALL_DETAIL_DATA,
-      contractSettings: loadContractSettings()
+      contractSettings: loadContractSettings(),
+      paybackSettings: loadPaybackSettings()
     };
 
+    // 使用 LZ-String 压缩以突破 100KB 限制
     const jsonContent = JSON.stringify(backupData);
+    const compressed = LZString.compressToUTF16(jsonContent);
+    // 包装为 JSON 对象上传（JSONBin 需要有效 JSON）
+    const uploadPayload = { _compressed: true, _v: '2.2', data: compressed };
+    const jsonUpload = JSON.stringify(uploadPayload);
+
+    console.log('[云端备份] 原始大小:', (jsonContent.length / 1024).toFixed(1) + 'KB, 压缩后:', (jsonUpload.length / 1024).toFixed(1) + 'KB, 压缩率:' + ((1 - jsonUpload.length / jsonContent.length) * 100).toFixed(1) + '%');
     const apiKey = getCloudApiKey();
     let binId = getCloudBinId();
 
@@ -3260,13 +3271,13 @@ async function backupToCloud() {
     const headers = { 'Content-Type': 'application/json' };
     if (apiKey) headers['X-Master-Key'] = apiKey;
 
-    let response = await fetch(url, { method, headers, body: jsonContent });
+    let response = await fetch(url, { method, headers, body: jsonUpload });
 
     // 如果 bin 不存在，创建新的
     if (!response.ok && response.status === 404 && binId) {
       url = CLOUD_API_URL;
       method = 'POST';
-      response = await fetch(url, { method, headers, body: jsonContent });
+      response = await fetch(url, { method, headers, body: jsonUpload });
       binId = null;
     }
 
@@ -3329,7 +3340,18 @@ async function restoreFromCloud() {
     }
 
     const result = await response.json();
-    const backupData = result.record || result;
+    let backupData = result.record || result;
+
+    // 支持压缩格式（v2.2+）和旧格式兼容
+    if (backupData._compressed && backupData.data) {
+      try {
+        const decompressed = LZString.decompressFromUTF16(backupData.data);
+        backupData = JSON.parse(decompressed);
+        console.log('[云端恢复] 已解压缩数据 (v2.2+)');
+      } catch (e) {
+        throw new Error('云端数据解压失败，可能数据已损坏');
+      }
+    }
 
     // 验证数据
     if (!backupData.data || !backupData.data.proj_ranking) {
@@ -3375,6 +3397,10 @@ async function restoreFromCloud() {
     // 恢复合同信息设置
     if (backupData.contractSettings && Object.keys(backupData.contractSettings).length > 0) {
       saveContractSettingsToStorage(backupData.contractSettings);
+    }
+    // 恢复预计回本收入设置
+    if (backupData.paybackSettings && Object.keys(backupData.paybackSettings).length > 0) {
+      savePaybackSettingsToStorage(backupData.paybackSettings);
     }
     isDataUpdated = true;
     document.getElementById('dataSourceBadge').className = 'data-source uploaded';
@@ -3433,7 +3459,18 @@ async function autoRestoreFromCloud() {
       xhr.send();
     });
 
-    const backupData = result.record || result;
+    let backupData = result.record || result;
+
+    // 支持压缩格式（v2.2+）
+    if (backupData._compressed && backupData.data) {
+      try {
+        const decompressed = LZString.decompressFromUTF16(backupData.data);
+        backupData = JSON.parse(decompressed);
+      } catch (e) {
+        setCloudStatus('⚠️ 云端数据解压失败');
+        return;
+      }
+    }
 
     if (!backupData.data || !backupData.data.proj_ranking) {
       setCloudStatus('⚠️ 云端数据格式异常');
@@ -3466,6 +3503,10 @@ async function autoRestoreFromCloud() {
       // 恢复合同信息设置
       if (backupData.contractSettings && Object.keys(backupData.contractSettings).length > 0) {
         saveContractSettingsToStorage(backupData.contractSettings);
+      }
+      // 恢复预计回本收入设置
+      if (backupData.paybackSettings && Object.keys(backupData.paybackSettings).length > 0) {
+        savePaybackSettingsToStorage(backupData.paybackSettings);
       }
       isDataUpdated = true;
       document.getElementById('dataSourceBadge').className = 'data-source uploaded';
