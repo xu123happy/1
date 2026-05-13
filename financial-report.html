@@ -765,8 +765,6 @@
   <div class="floating-nav-divider"></div>
   <span class="floating-nav-item" data-target="chart-ranking" onclick="scrollToSection('chart-ranking')">🏆 Top10</span>
   <div class="floating-nav-divider"></div>
-  <span class="floating-nav-item" data-target="projectTable" onclick="scrollToSection('projectTable')">📋 明细表</span>
-  <div class="floating-nav-divider"></div>
   <span class="floating-nav-item" data-target="contractTable" onclick="scrollToSection('contractTable')">📑 合同表</span>
   <div class="floating-nav-divider"></div>
   <span class="floating-nav-item" data-target="searchSection" onclick="scrollToSection('searchSection')">🔍 搜索</span>
@@ -885,6 +883,10 @@
         <span>💾</span>
         <span>保存数据</span>
       </button>
+      <button class="load-btn" onclick="loadFromStorage()" id="localLoadBtn">
+        <span>📂</span>
+        <span>本地加载</span>
+      </button>
       <button class="save-btn" onclick="backupToCloud()" id="cloudBackupBtn" style="background: linear-gradient(135deg, #7c3aed, #a78bfa);">
         <span>☁️</span>
         <span>备份到云端</span>
@@ -969,12 +971,12 @@
     <div class="card-desc">收入 vs 支出</div>
     <div class="chart-box" id="chart-type"></div>
   </div>
-  <div class="card">
+  <div class="card" style="display:none;">
     <div class="card-title"><span class="dot"></span>类别分布</div>
     <div class="card-desc">高校 / 公寓 / 其他</div>
     <div class="chart-box" id="chart-category"></div>
   </div>
-<div class="card full">
+<div class="card full" style="display:none;">
     <div class="card-title"><span class="dot"></span>项目收入明细表</div>
     <div class="card-desc">所有项目收支明细</div>
     <div class="table-scroll">
@@ -3019,6 +3021,18 @@ function saveSaveList(list) {
   try {
     localStorage.setItem(SAVE_LIST_KEY, JSON.stringify(list));
   } catch (e) { /* ignore */ }
+}
+
+// 从本地 localStorage 加载最近一次保存的数据
+function loadFromStorage() {
+  const list = getSaveList();
+  if (list.length === 0) {
+    showToast('暂无本地保存记录，请先保存数据', 'info');
+    return;
+  }
+  // 自动加载最近一次的保存
+  const latest = list[0];
+  loadSavedItem(latest.id);
 }
 
 function saveToStorage() {
