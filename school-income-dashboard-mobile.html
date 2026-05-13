@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>收入日报</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -707,38 +708,52 @@
             autoRestoreFromCloud();
         });
         
-        // ===== 自动恢复云端数据（静默） =====
+        // ===== 自动恢复云端数据（静默，支持分段 v3.0） =====
         async function autoRestoreFromCloud() {
             const apiKey = localStorage.getItem('jsonbinApiKey');
             const binId = localStorage.getItem('incomeJsonbinId');
-            
+
             if (!apiKey || !binId) return;
 
             try {
-                const response = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, {
-                    headers: { 'X-Master-Key': apiKey }
-                });
+                let response = await fetch(MOBILE_CLOUD_URL + '/' + binId, { headers: { 'X-Master-Key': apiKey } });
+                if (!response.ok) return;
 
-                if (response.ok) {
-                    const result = await response.json();
-                    let record = result.record || result;
-                    
-                    if (record.data && typeof record.data === 'object') {
-                        const convertedData = convertPCDataToMobile(record.data);
-                        incomeData = convertedData;
-                    } else if (record.incomeData) {
-                        incomeData = record.incomeData;
-                    } else if (record.type === 'school-income') {
-                        const convertedData = convertPCDataToMobile(record.data || {});
-                        incomeData = convertedData;
+                let result = await response.json();
+                let record = result.record || result;
+
+                // 分段存储
+                if (record._isIndex && record.chunks && Array.isArray(record.chunks)) {
+                    const chunkResults = [];
+                    for (let i = 0; i < record.chunks.length; i++) {
+                        try {
+                            const cr = await fetch(MOBILE_CLOUD_URL + '/' + record.chunks[i], { headers: { 'X-Master-Key': apiKey } });
+                            if (!cr.ok) return;
+                            const cj = await cr.json();
+                            const r = cj.record || cj;
+                            if (r._chunk && r.data !== undefined) chunkResults[r._index] = r.data;
+                        } catch (e) { return; }
                     }
-                    
-                    saveData();
-                    updateDisplay();
-                    updateSchoolSelect();
+                    if (chunkResults.length > 0) {
+                        try { record = JSON.parse(chunkResults.join('')); } catch (e) { return; }
+                    }
+                } else if (record._compressed && record.data) {
+                    try { record = JSON.parse(LZString.decompressFromUTF16(record.data)); } catch (e) { return; }
                 }
+
+                if (record.data && typeof record.data === 'object') {
+                    incomeData = convertPCDataToMobile(record.data);
+                } else if (record.incomeData) {
+                    incomeData = record.incomeData;
+                } else if (record.type === 'school-income') {
+                    incomeData = convertPCDataToMobile(record.data || {});
+                }
+
+                saveData();
+                updateDisplay();
+                updateSchoolSelect();
             } catch (e) {
-                // 静默失败，不显示任何提示
+                // 静默失败
             }
         }
 
@@ -1234,6 +1249,10 @@
         }
 
         // ===== 云端同步 =====
+        // 分段存储常量
+        const MOBILE_CLOUD_URL = 'https://api.jsonbin.io/v3/b';
+        const MOBILE_CHUNK_LIMIT = 80; // KB
+
         async function syncToCloud() {
             const apiKey = localStorage.getItem('jsonbinApiKey');
             if (!apiKey) {
@@ -1245,52 +1264,83 @@
 
             showToast('☁️ 正在同步...');
 
-            // 使用与电脑端兼容的数据格式
-            // 电脑端格式：{ type: 'school-income', data: { '学校': [设备数组] } }
-            // 移动端数据是简单的数组，需要转换
-            const pcFormatData = convertMobileDataToPC(incomeData);
-
-            const data = {
-                type: 'school-income',
-                version: '2.0',
-                data: pcFormatData,
-                timestamp: new Date().toISOString(),
-                settings: {
-                    deviceCounts: deviceCounts
-                }
-            };
-
             try {
-                let binId = localStorage.getItem('incomeJsonbinId');
-                const url = binId 
-                    ? `https://api.jsonbin.io/v3/b/${binId}` 
-                    : 'https://api.jsonbin.io/v3/b';
+                const pcFormatData = convertMobileDataToPC(incomeData);
 
-                const method = binId ? 'PUT' : 'POST';
-                
-                const response = await fetch(url, {
-                    method,
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Bin-Private': 'true',
-                        'X-Master-Key': apiKey
-                    },
-                    body: JSON.stringify(data)
-                });
+                const fullBackupData = {
+                    type: 'school-income',
+                    version: '3.0',
+                    chunked: true,
+                    timestamp: new Date().toISOString(),
+                    data: pcFormatData,
+                    settings: { deviceCounts: deviceCounts }
+                };
+                const fullJson = JSON.stringify(fullBackupData);
+                const totalKB = (fullJson.length / 1024).toFixed(1);
 
-                if (response.ok) {
-                    const result = await response.json();
-                    if (!binId && result.metadata?.id) {
-                        localStorage.setItem('incomeJsonbinId', result.metadata.id);
-                    }
-                    showToast('✅ 已同步到云端');
-                    updateSyncStatus();
-                } else {
-                    throw new Error('Sync failed');
+                // 拆分
+                const chunks = splitIntoChunksMobile(fullJson, MOBILE_CHUNK_LIMIT * 1024);
+                console.log('[移动端分段备份] 总大小:', totalKB + 'KB, 分片数:', chunks.length);
+
+                // 上传分片
+                const chunkBinIds = [];
+                for (let i = 0; i < chunks.length; i++) {
+                    showToast('上传分片 ' + (i + 1) + '/' + chunks.length + '...');
+                    const chunkPayload = { _chunk: true, _index: i, _total: chunks.length, data: chunks[i] };
+                    const cr = await fetch(MOBILE_CLOUD_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-Master-Key': apiKey },
+                        body: JSON.stringify(chunkPayload)
+                    });
+                    if (!cr.ok) throw new Error('分片' + (i+1) + '失败 HTTP ' + cr.status);
+                    const cresult = await cr.json();
+                    chunkBinIds.push(cresult.metadata.id);
                 }
-            } catch {
-                showToast('❌ 同步失败');
+
+                // 更新主 Bin
+                let binId = localStorage.getItem('incomeJsonbinId');
+                const indexData = { _isIndex: true, version: '3.0', timestamp: new Date().toISOString(), totalSizeKB: totalKB, chunkCount: chunks.length, chunks: chunkBinIds };
+
+                let url = binId ? MOBILE_CLOUD_URL + '/' + binId : MOBILE_CLOUD_URL;
+                let method = binId ? 'PUT' : 'POST';
+
+                let response = await fetch(url, { method, headers: { 'Content-Type': 'application/json', 'X-Master-Key': apiKey }, body: JSON.stringify(indexData) });
+
+                if (!response.ok && response.status === 404 && binId) {
+                    response = await fetch(MOBILE_CLOUD_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Master-Key': apiKey }, body: JSON.stringify(indexData) });
+                    binId = null;
+                }
+
+                if (!response.ok) throw new Error('Sync failed');
+
+                const result = await response.json();
+                if (!binId && result.metadata?.id) {
+                    localStorage.setItem('incomeJsonbinId', result.metadata.id);
+                }
+
+                showToast('✅ 已同步到云端 (' + totalKB + 'KB, ' + chunks.length + '片)');
+                updateSyncStatus();
+            } catch (e) {
+                showToast('❌ 同步失败: ' + e.message);
             }
+        }
+
+        // 移动端分片函数
+        function splitIntoChunksMobile(str, maxBytes) {
+            const chunks = [];
+            const limit = maxBytes - 120;
+            let offset = 0;
+            while (offset < str.length) {
+                let end = offset + limit;
+                if (end >= str.length) { chunks.push(str.slice(offset)); break; }
+                let cutPos = end;
+                for (let s = end; s > offset + limit * 0.7; s--) {
+                    if (str.charAt(s) === ',' || str.charAt(s) === '}' || str.charAt(s) === ']') { cutPos = s + 1; break; }
+                }
+                chunks.push(str.slice(offset, cutPos));
+                offset = cutPos;
+            }
+            return chunks;
         }
 
         // 转换移动端数据格式为电脑端格式
@@ -1335,7 +1385,7 @@
         async function loadFromCloud() {
             const apiKey = localStorage.getItem('jsonbinApiKey');
             const binId = localStorage.getItem('incomeJsonbinId');
-            
+
             if (!apiKey || !binId) {
                 showToast('❌ 暂无云端同步记录');
                 return;
@@ -1346,51 +1396,59 @@
             showToast('📥 正在恢复...');
 
             try {
-                const response = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, {
-                    headers: { 'X-Master-Key': apiKey }
-                });
+                // 读取主 Bin
+                let response = await fetch(MOBILE_CLOUD_URL + '/' + binId, { headers: { 'X-Master-Key': apiKey } });
+                if (!response.ok) throw new Error('Load failed');
 
-                if (response.ok) {
-                    const result = await response.json();
-                    
-                    // JSONBin.io 返回格式: { record: {...} } 或直接返回数据
-                    let record = result.record || result;
-                    
-                    // 电脑端格式：{ type: 'school-income', data: { '学校名': [设备数组] } }
-                    // 移动端格式：{ incomeData: [...] }
-                    
-                    if (record.data && typeof record.data === 'object') {
-                        // 电脑端格式，需要转换
-                        const pcData = record.data;
-                        const convertedData = convertPCDataToMobile(pcData);
-                        incomeData = convertedData;
-                        alert('✅ 转换完成！共 ' + convertedData.length + ' 条记录');
-                    } else if (record.incomeData) {
-                        // 移动端格式
-                        incomeData = record.incomeData;
-                        alert('✅ 移动端格式恢复完成！共 ' + incomeData.length + ' 条记录');
-                    } else if (record.type === 'school-income' && !record.incomeData) {
-                        // 也是电脑端格式
-                        const convertedData = convertPCDataToMobile(record.data || {});
-                        incomeData = convertedData;
-                        alert('✅ 转换完成！共 ' + convertedData.length + ' 条记录');
-                    } else {
-                        alert('⚠️ 未识别的数据格式！\n\n请把弹窗内容截图给我看');
+                let result = await response.json();
+                let record = result.record || result;
+
+                // 分段存储模式
+                if (record._isIndex && record.chunks && Array.isArray(record.chunks)) {
+                    showToast('下载 ' + record.chunkCount + ' 个分片...');
+                    const chunkResults = [];
+                    for (let i = 0; i < record.chunks.length; i++) {
+                        const cr = await fetch(MOBILE_CLOUD_URL + '/' + record.chunks[i], { headers: { 'X-Master-Key': apiKey } });
+                        if (!cr.ok) throw new Error('分片' + (i+1) + '失败');
+                        const cj = await cr.json();
+                        const r = cj.record || cj;
+                        if (!r._chunk || r.data === undefined) throw new Error('分片格式错误');
+                        chunkResults[r._index] = r.data;
                     }
-                    
-                    if (record.settings?.deviceCounts) {
-                        deviceCounts = record.settings.deviceCounts;
-                        saveDevices();
-                    }
-                    
-                    saveData();
-                    updateDisplay();
-                    updateSchoolSelect();
-                    showToast('✅ 已从云端恢复');
-                    updateSyncStatus();
-                } else {
-                    throw new Error('Load failed');
+                    try { record = JSON.parse(chunkResults.join('')); }
+                    catch (e) { throw new Error('分片数据解析失败'); }
+                } else if (record._compressed && record.data) {
+                    try { record = JSON.parse(LZString.decompressFromUTF16(record.data)); }
+                    catch (e) { throw new Error('解压失败'); }
                 }
+
+                // 处理数据（兼容电脑端和移动端格式）
+                if (record.data && typeof record.data === 'object') {
+                    const pcData = record.data;
+                    const convertedData = convertPCDataToMobile(pcData);
+                    incomeData = convertedData;
+                    alert('✅ 转换完成！共 ' + convertedData.length + ' 条记录');
+                } else if (record.incomeData) {
+                    incomeData = record.incomeData;
+                    alert('✅ 移动端格式恢复完成！共 ' + incomeData.length + ' 条记录');
+                } else if (record.type === 'school-income' && !record.incomeData) {
+                    const convertedData = convertPCDataToMobile(record.data || {});
+                    incomeData = convertedData;
+                    alert('✅ 转换完成！共 ' + convertedData.length + ' 条记录');
+                } else {
+                    alert('⚠️ 未识别的数据格式！');
+                }
+
+                if (record.settings?.deviceCounts) {
+                    deviceCounts = record.settings.deviceCounts;
+                    saveDevices();
+                }
+
+                saveData();
+                updateDisplay();
+                updateSchoolSelect();
+                showToast('✅ 已从云端恢复');
+                updateSyncStatus();
             } catch (e) {
                 alert('❌ 恢复失败：' + e.message);
                 showToast('❌ 恢复失败');
