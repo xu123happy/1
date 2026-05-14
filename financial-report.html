@@ -3232,7 +3232,7 @@ function updateBinIdDisplay() {
 
 // 恢复默认 Bin ID（用于新设备或 Bin ID 失效时重置）
 function resetToDefaultBinId() {
-  const defaultId = '6a04475e250b1311c3433c56';
+  const defaultId = '6a056101adc21f119a9a09d1';
   const currentId = getCloudBinId();
 
   if (currentId === defaultId) {
@@ -3253,7 +3253,7 @@ function resetToDefaultBinId() {
 // 默认值：硬编码到代码中，即使 localStorage 被清空也不影响
 // ⚠️ 第一次备份成功后会自动更新此值到文件中
 const DEFAULT_CLOUD_API_KEY = '$2a$10$hAdV7dPwOfZd3zhxXNsPkes4AEhT49k2b6w4PdvPkFcppNv46MDya';
-const DEFAULT_CLOUD_BIN_ID = '6a04475e250b1311c3433c56';
+const DEFAULT_CLOUD_BIN_ID = '6a056101adc21f119a9a09d1';
 
 const CLOUD_API_URL = 'https://api.jsonbin.io/v3/b';
 const CLOUD_BACKUP_KEY = 'jingguan_report_202604';
