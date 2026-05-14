@@ -330,6 +330,37 @@
     text-align: center; padding: 40px 20px; color: #c9cdd4; font-size: 14px;
   }
   .search-highlight { background: #fff3f0; padding: 1px 2px; border-radius: 2px; }
+  .search-delete-btn {
+    padding: 4px 12px;
+    background: #fff0f0;
+    color: #d91a1a;
+    border: 1px solid #fcc;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .search-delete-btn:hover {
+    background: #d91a1a;
+    color: #fff;
+    border-color: #d91a1a;
+  }
+  .undo-delete-btn {
+    padding: 4px 12px;
+    background: #fff8e6;
+    color: #b36b00;
+    border: 1px solid #ffd280;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-left: 12px;
+  }
+  .undo-delete-btn:hover {
+    background: #ffd280;
+    color: #7c4400;
+    border-color: #b36b00;
+  }
   
   /* Income Type Colors */
   .income-tag {
@@ -1057,7 +1088,8 @@
   <div class="search-bar">
     <input type="text" class="search-input" id="searchProject" placeholder="项目关键词" onkeydown="if(event.key==='Enter')searchDetail()">
     <input type="text" class="search-input" id="searchRemark" placeholder="备注/摘要关键词" onkeydown="if(event.key==='Enter')searchDetail()">
-    <input type="month" class="search-input" id="searchMonth" placeholder="选择月份" style="min-width:160px;">
+    <input type="month" class="search-input" id="searchMonth" placeholder="选择月份" style="min-width:160px;" onchange="updateDeleteMonthBtn()">
+    <button class="search-delete-btn" id="deleteMonthBtn" onclick="deleteMonthData()" style="display:none;">🗑️ 删除该月</button>
     <select class="search-select" id="searchType">
       <option value="">全部类型</option>
       <option value="income">收入</option>
@@ -1065,6 +1097,7 @@
       <option value="investment">投入</option>
     </select>
     <button class="search-btn" onclick="searchDetail()">🔍 搜索</button>
+    <button class="undo-delete-btn" id="undoDeleteBtn" onclick="undoDelete()" style="display:none;">↩️ 撤销删除</button>
     <button class="search-btn-reset" onclick="resetSearch()">重置</button>
   </div>
   <div class="search-stats" id="searchStats">输入条件后点击搜索</div>
@@ -1079,6 +1112,7 @@
           <th>金额(元)</th>
           <th>摘要</th>
           <th>备注</th>
+          <th>操作</th>
         </tr>
       </thead>
       <tbody id="searchResultBody"></tbody>
@@ -1190,6 +1224,10 @@
 </div>
 
 <script>
+// ============== 全局搜索变量（支持删除撤销）==============
+window._searchResults = [];
+window._lastDeletedItem = null;
+
 // ============== 月份选择器 ==============
 function getSelectedMonth() {
   const val = document.getElementById('monthSelect').value; // "YYYY-MM"
@@ -1610,7 +1648,7 @@ function extractIncomeData(sheetData, workbook, filterByMonth) {
   }
   const headers = sheetData[headerRow];
   if (!headers) return null;
-  let projectCol = -1, typeCol = -1, amountCol = -1, dateCol = -1, summaryCol = -1, remarkCol = -1;
+  let projectCol = -1, typeCol = -1, amountCol = -1, dateCol = -1, summaryCol = -1, remarkCol = -1, idCol = -1;
   for (let i = 0; i < headers.length; i++) {
     const h = String(headers[i] || '').trim().toLowerCase();
     if (h.includes('项目') || h.includes('名称') || h.includes('客户')) projectCol = i;
@@ -1619,6 +1657,7 @@ function extractIncomeData(sheetData, workbook, filterByMonth) {
     else if (h.includes('日期') || h.includes('时间')) dateCol = i;
     else if (h.includes('摘要') || h.includes('说明')) summaryCol = i;
     else if (h.includes('备注') || h.includes('注释')) remarkCol = i;
+    else if (h === 'id' || h.includes('编号') || h.includes('序号标识')) idCol = i;
   }
   if (projectCol === -1) projectCol = 0;
   if (typeCol === -1) typeCol = 4;
@@ -1667,8 +1706,9 @@ function extractIncomeData(sheetData, workbook, filterByMonth) {
     }
     const summary = summaryCol >= 0 ? String(row[summaryCol] || '').trim() : '';
     const remark = remarkCol >= 0 ? String(row[remarkCol] || '').trim() : '';
+    const rowId = idCol >= 0 ? String(row[idCol] || '').trim() : '';
     if (!projectSummary[projectName]) projectSummary[projectName] = { income: 0, expense: 0, investment: 0, detail: [] };
-    const detail = { date, summary, remark, amount, type: recordType };
+    const detail = { date, summary, remark, amount, type: recordType, id: rowId };
     projectSummary[projectName].detail.push(detail);
     // 全局明细数据 ALL_DETAIL_DATA 由 mergeAllMonthsData 统一去重管理，此处不再推送
     if (recordType === 'income') projectSummary[projectName].income += amount;
@@ -1703,7 +1743,7 @@ function mergeAllMonthsData(sheetData, workbook) {
   }
   const headers = sheetData[headerRow];
   if (!headers) return;
-  let projectCol = -1, typeCol = -1, amountCol = -1, dateCol = -1, summaryCol = -1, remarkCol = -1;
+  let projectCol = -1, typeCol = -1, amountCol = -1, dateCol = -1, summaryCol = -1, remarkCol = -1, idCol = -1;
   for (let i = 0; i < headers.length; i++) {
     const h = String(headers[i] || '').trim().toLowerCase();
     if (h.includes('项目') || h.includes('名称') || h.includes('客户')) projectCol = i;
@@ -1712,16 +1752,17 @@ function mergeAllMonthsData(sheetData, workbook) {
     else if (h.includes('日期') || h.includes('时间')) dateCol = i;
     else if (h.includes('摘要') || h.includes('说明')) summaryCol = i;
     else if (h.includes('备注') || h.includes('注释')) remarkCol = i;
+    else if (h === 'id' || h.includes('编号') || h.includes('序号标识')) idCol = i;
   }
   if (projectCol === -1) projectCol = 0;
   if (typeCol === -1) typeCol = 4;
   if (amountCol === -1) amountCol = 3;
   const startRow = headerRow + 1;
   // 构建已有明细的唯一键集合，用于去重
-  // 只要有一列不同就算不同数据：project+date+summary+remark+amount+type 全部相同才为重复
+  // 只要有一列不同就算不同数据：project+date+summary+remark+amount+type+id 全部相同才为重复
   const existingKeys = new Set();
   ALL_DETAIL_DATA.forEach(d => {
-    existingKeys.add(d.project + '|' + d.date + '|' + d.summary + '|' + d.remark + '|' + d.amount + '|' + d.type);
+    existingKeys.add(d.project + '|' + d.date + '|' + d.summary + '|' + d.remark + '|' + d.amount + '|' + d.type + '|' + (d.id || ''));
   });
   // 按月+项目分组统计（仅统计新增的非重复数据）
   const monthProjectData = {}; // { "2026-04": { 项目名: {income, expense} } }
@@ -1766,15 +1807,16 @@ function mergeAllMonthsData(sheetData, workbook) {
     if (!monthKey) continue; // 没有日期的行跳过（无法归入月份）
     const summary = summaryCol >= 0 ? String(row[summaryCol] || '').trim() : '';
     const remark = remarkCol >= 0 ? String(row[remarkCol] || '').trim() : '';
-    // 去重检查：所有列都相同才算重复
-    const rowKey = projectName + '|' + date + '|' + summary + '|' + remark + '|' + amount + '|' + recordType;
+    const rowId = idCol >= 0 ? String(row[idCol] || '').trim() : '';
+    // 去重检查：所有列都相同才算重复（含ID列，ID不同则不是重复）
+    const rowKey = projectName + '|' + date + '|' + summary + '|' + remark + '|' + amount + '|' + recordType + '|' + rowId;
     if (existingKeys.has(rowKey)) {
       dupCount++;
       continue; // 跳过重复数据
     }
     // 新增数据：加入去重集合和全局明细
     existingKeys.add(rowKey);
-    ALL_DETAIL_DATA.push({ project: projectName, date, summary, remark, amount, type: recordType });
+    ALL_DETAIL_DATA.push({ project: projectName, date, summary, remark, amount, type: recordType, id: rowId });
     newCount++;
     if (!monthProjectData[monthKey]) monthProjectData[monthKey] = {};
     if (!monthProjectData[monthKey][projectName]) monthProjectData[monthKey][projectName] = { income: 0, expense: 0, investment: 0 };
@@ -3221,6 +3263,42 @@ function setCloudStatus(text) {
   if (el) el.textContent = text;
 }
 
+// 静默备份到云端（不弹提示，用于删除后自动同步）
+async function backupToCloudSilent() {
+  try {
+    const binId = getCloudBinId();
+    if (!binId) return; // 没有云端备份ID，跳过
+    const apiKey = getCloudApiKey();
+    const backupData = {
+      type: 'jingguan-report',
+      key: CLOUD_BACKUP_KEY,
+      version: '2.2',
+      compressed: true,
+      timestamp: new Date().toISOString(),
+      data: DATA,
+      allMonthsData: ALL_MONTHS_DATA,
+      allDetailData: ALL_DETAIL_DATA,
+      contractSettings: loadContractSettings(),
+      paybackSettings: loadPaybackSettings(),
+      globalFilter: loadGlobalFilter() ? Array.from(loadGlobalFilter()) : null,
+      colFilter: loadColFilter(),
+      rowFilter: loadRowFilter()
+    };
+    const jsonContent = JSON.stringify(backupData);
+    const compressed = LZString.compressToUTF16(jsonContent);
+    const uploadPayload = { _compressed: true, _v: '2.2', data: compressed };
+    const jsonUpload = JSON.stringify(uploadPayload);
+    const headers = { 'Content-Type': 'application/json' };
+    if (apiKey) headers['X-Master-Key'] = apiKey;
+    const response = await fetch(CLOUD_API_URL + '/' + binId, { method: 'PUT', headers, body: jsonUpload });
+    if (response.ok) {
+      console.log('[云端同步] 删除后已自动同步到云端');
+    }
+  } catch (e) {
+    console.error('[云端同步] 自动备份失败:', e);
+  }
+}
+
 // 备份到云端
 async function backupToCloud() {
   const btn = document.getElementById('cloudBackupBtn');
@@ -3679,6 +3757,8 @@ function searchDetail() {
     results = results.filter(d => d.type === typeFilter);
   }
 
+  window._searchResults = results.slice();
+
   // 按日期降序排序
   results.sort((a, b) => {
     if (!a.date) return 1;
@@ -3721,15 +3801,13 @@ function renderSearchResults(results, projectKeyword, remarkKeyword) {
   const typeLabels = { income: '收入', expense: '支出', investment: '投入' };
   const amountClasses = { income: 'amount-income', expense: 'amount-expense', investment: 'amount-investment' };
 
-  tbody.innerHTML = results.map(d => {
+  tbody.innerHTML = results.map((d, idx) => {
     const typeLabel = typeLabels[d.type] || d.type;
     const amountClass = amountClasses[d.type] || '';
     const project = highlightKeyword(escapeHtml(d.project || ''), projectKeyword);
     const remark = highlightKeyword(escapeHtml(d.remark || ''), remarkKeyword);
     const summary = highlightKeyword(escapeHtml(d.summary || ''), remarkKeyword);
     // 金额显示：根据类型和实际正负号决定显示方式
-    // 收入：正数+xxx，负数-xxx
-    // 支出/投入：正数-xxx，负数+xxx（表示退款/收回）
     let displayAmount = Math.abs(d.amount || 0);
     const prefix = d.type === 'expense' || d.type === 'investment'
       ? (d.amount >= 0 ? '-' : '+')  // 支出/投入：正数加-，负数加+
@@ -3743,6 +3821,7 @@ function renderSearchResults(results, projectKeyword, remarkKeyword) {
       '<td class="' + amountClass + '">' + amount + '</td>' +
       '<td>' + (summary || '-') + '</td>' +
       '<td>' + (remark || '-') + '</td>' +
+      '<td><button class="search-delete-btn" onclick="deleteSearchResult(' + idx + ')">删除</button></td>' +
       '</tr>';
   }).join('');
 }
@@ -3759,17 +3838,264 @@ function escapeHtml(str) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+// ============== 月份批量删除功能 ==============
+// 根据是否选择了月份显示/隐藏删除按钮
+function updateDeleteMonthBtn() {
+  var monthVal = document.getElementById('searchMonth').value;
+  var btn = document.getElementById('deleteMonthBtn');
+  if (btn) {
+    btn.style.display = monthVal ? 'inline-block' : 'none';
+  }
+}
+
+// 批量删除指定月份的所有数据
+function deleteMonthData() {
+  var monthVal = document.getElementById('searchMonth').value;
+  if (!monthVal) {
+    showToast('请先选择要删除的月份', 'info');
+    return;
+  }
+
+  // 先搜索该月有多少条记录
+  var monthItems = ALL_DETAIL_DATA.filter(function(d) {
+    return d.date && d.date.startsWith(monthVal);
+  });
+
+  if (monthItems.length === 0) {
+    showToast('该月份没有数据可删除', 'info');
+    return;
+  }
+
+  // 统计该月收支情况
+  var totalIncome = 0, totalExpense = 0, totalInvestment = 0;
+  monthItems.forEach(function(d) {
+    if (d.type === 'income') totalIncome += d.amount || 0;
+    else if (d.type === 'expense') totalExpense += d.amount || 0;
+    else if (d.type === 'investment') totalInvestment += d.amount || 0;
+  });
+
+  var confirmMsg = '确定要删除 ' + monthVal + ' 的所有数据吗？\n\n' +
+    '共 ' + monthItems.length + ' 条记录\n' +
+    '收入合计：¥' + totalIncome.toLocaleString() + '\n' +
+    '支出合计：¥' + totalExpense.toLocaleString() +
+    (totalInvestment > 0 ? '\n投入合计：¥' + totalInvestment.toLocaleString() : '') +
+    '\n\n此操作不可恢复，请谨慎操作！';
+
+  if (!confirm(confirmMsg)) return;
+
+  // 再次确认
+  if (!confirm('⚠️ 最后确认：删除后数据无法恢复！\n\n确定要继续吗？')) return;
+
+  // 保存被删除的数据用于撤销
+  window._lastDeletedItem = {
+    data: monthItems.map(function(item) { return Object.assign({}, item); }),
+    realIdx: -1,
+    wasInResults: true,
+    isBatchDelete: true,
+    monthKey: monthVal
+  };
+
+  // 从 ALL_DETAIL_DATA 中移除该月的所有记录
+  ALL_DETAIL_DATA = ALL_DETAIL_DATA.filter(function(d) {
+    return !(d.date && d.date.startsWith(monthVal));
+  });
+
+  // 重建 ALL_MONTHS_DATA
+  rebuildAllMonthsData();
+
+  // 清空搜索月份选择
+  document.getElementById('searchMonth').value = '';
+  document.getElementById('deleteMonthBtn').style.display = 'none';
+
+  // 重新加载当前月份数据并渲染整个报表
+  if (Object.keys(ALL_MONTHS_DATA).length > 0) {
+    loadMonthFromAllData(getSelectedMonth());
+  } else {
+    DATA.proj_ranking = [];
+    DATA_ORIG.proj_ranking = [];
+    DATA.summary.project_income = 0;
+    DATA.summary.project_count = 0;
+    DATA.type_ranking = [];
+    DATA.cat_ranking = [];
+    ALL_MONTHS_DATA = {};
+    renderAll();
+  }
+
+  // 重新搜索
+  searchDetail();
+
+  // 显示撤销按钮
+  showUndoButton();
+
+  // 自动重新备份到云端，确保云端数据与本地同步
+  setTimeout(function() {
+    showToast('已删除 ' + monthVal + ' 的 ' + monthItems.length + ' 条记录，正在同步到云端...', 'info');
+    backupToCloudSilent();
+  }, 100);
+}
+
 // 重置搜索
 function resetSearch() {
   document.getElementById('searchProject').value = '';
   document.getElementById('searchRemark').value = '';
   document.getElementById('searchMonth').value = '';
   document.getElementById('searchType').value = '';
+  document.getElementById('deleteMonthBtn').style.display = 'none';
+  document.getElementById('undoDeleteBtn').style.display = 'none';
   document.getElementById('searchStats').innerHTML = '输入条件后点击搜索';
   document.getElementById('searchEmpty').style.display = 'block';
   document.getElementById('searchEmpty').textContent = '暂无搜索结果，请输入条件后搜索';
   document.getElementById('searchResultTable').style.display = 'none';
   document.getElementById('searchResultBody').innerHTML = '';
+  window._searchResults = [];
+  window._lastDeletedItem = null;
+}
+
+// ============== 从 ALL_DETAIL_DATA 重建 ALL_MONTHS_DATA ==============
+function rebuildAllMonthsData() {
+  ALL_MONTHS_DATA = {};
+  ALL_DETAIL_DATA.forEach(function(d) {
+    var monthKey = d.date ? d.date.substring(0, 7) : '';
+    if (!monthKey) return;
+    if (!ALL_MONTHS_DATA[monthKey]) ALL_MONTHS_DATA[monthKey] = {};
+    if (!ALL_MONTHS_DATA[monthKey][d.project]) ALL_MONTHS_DATA[monthKey][d.project] = { income: 0, expense: 0, investment: 0 };
+    if (d.type === 'income') ALL_MONTHS_DATA[monthKey][d.project].income += d.amount;
+    else if (d.type === 'expense') ALL_MONTHS_DATA[monthKey][d.project].expense += d.amount;
+    else if (d.type === 'investment') ALL_MONTHS_DATA[monthKey][d.project].investment += d.amount;
+  });
+}
+
+// ============== 删除搜索结果中的指定行，并同步全网页数据 ==============
+function deleteSearchResult(idx) {
+  if (!window._searchResults || idx < 0 || idx >= window._searchResults.length) return;
+  var item = window._searchResults[idx];
+
+  // 确认对话框
+  if (!confirm('确定要删除这条明细记录吗？\n\n项目：' + item.project + '\n日期：' + (item.date || '-') + '\n金额：' + (item.amount || 0) + '\n\n删除后将同步更新所有统计数据，可点击「撤销」恢复。')) return;
+
+  // 保存被删除的记录到撤销缓存
+  window._lastDeletedItem = {
+    data: Object.assign({}, item),
+    realIdx: -1,
+    wasInResults: true
+  };
+
+  // 从 ALL_DETAIL_DATA 中找到并删除该记录（使用对象引用）
+  var realIdx = -1;
+  for (var i = 0; i < ALL_DETAIL_DATA.length; i++) {
+    if (ALL_DETAIL_DATA[i] === item) { realIdx = i; break; }
+  }
+  window._lastDeletedItem.realIdx = realIdx;
+
+  if (realIdx !== -1) {
+    ALL_DETAIL_DATA.splice(realIdx, 1);
+  }
+
+  // 从当前搜索结果中也移除
+  window._searchResults.splice(idx, 1);
+
+  // 重建 ALL_MONTHS_DATA（从更新后的 ALL_DETAIL_DATA 重新聚合）
+  rebuildAllMonthsData();
+
+  // 重新加载当前月份数据并渲染整个报表（同步KPI、图表、合同表等）
+  if (Object.keys(ALL_MONTHS_DATA).length > 0) {
+    loadMonthFromAllData(getSelectedMonth());
+  } else {
+    // 没有数据了，清空全部
+    DATA.proj_ranking = [];
+    DATA_ORIG.proj_ranking = [];
+    DATA.summary.project_income = 0;
+    DATA.summary.project_count = 0;
+    DATA.type_ranking = [];
+    DATA.cat_ranking = [];
+    ALL_MONTHS_DATA = {};
+    renderAll();
+  }
+
+  // 重新渲染搜索结果表格（使用更新后的 window._searchResults）
+  var projectKeyword = (document.getElementById('searchProject').value || '').trim().toLowerCase();
+  var remarkKeyword = (document.getElementById('searchRemark').value || '').trim().toLowerCase();
+  renderSearchResults(window._searchResults, projectKeyword, remarkKeyword);
+
+  // 显示撤销按钮
+  showUndoButton();
+
+  // 自动重新备份到云端，确保云端数据与本地同步
+  setTimeout(function() {
+    backupToCloudSilent();
+  }, 100);
+
+  // 短暂延迟后显示 toast，确保按钮先渲染
+  setTimeout(function() {
+    showToast('已删除该条记录，点击「撤销」可恢复', 'success');
+  }, 50);
+}
+
+// ============== 显示/隐藏撤销按钮 ==============
+function showUndoButton() {
+  var undoBtn = document.getElementById('undoDeleteBtn');
+  if (undoBtn) {
+    undoBtn.style.display = 'inline-block';
+    undoBtn.style.visibility = 'visible';
+  }
+}
+
+function hideUndoButton() {
+  var undoBtn = document.getElementById('undoDeleteBtn');
+  if (undoBtn) {
+    undoBtn.style.display = 'none';
+    undoBtn.style.visibility = 'hidden';
+  }
+}
+
+// ============== 撤销恢复最近删除的记录 ==============
+function undoDelete() {
+  if (!window._lastDeletedItem || !window._lastDeletedItem.data) {
+    showToast('没有可撤销的操作', 'info');
+    return;
+  }
+
+  var deleted = window._lastDeletedItem;
+
+  // 批量删除的撤销
+  if (deleted.isBatchDelete && Array.isArray(deleted.data)) {
+    // 将所有被删除的记录重新添加到 ALL_DETAIL_DATA
+    deleted.data.forEach(function(item) {
+      ALL_DETAIL_DATA.push(item);
+    });
+    showToast('已恢复 ' + deleted.data.length + ' 条记录（' + (deleted.monthKey || '') + '）', 'success');
+  } else {
+    // 单条删除的撤销
+    var item = deleted.data;
+    if (deleted.realIdx !== -1 && deleted.realIdx <= ALL_DETAIL_DATA.length) {
+      ALL_DETAIL_DATA.splice(deleted.realIdx, 0, item);
+    } else {
+      ALL_DETAIL_DATA.push(item);
+    }
+    showToast('已恢复删除的记录', 'success');
+  }
+
+  // 清空撤销缓存
+  window._lastDeletedItem = null;
+  hideUndoButton();
+
+  // 重建 ALL_MONTHS_DATA
+  rebuildAllMonthsData();
+
+  // 自动重新备份到云端，确保云端数据与本地同步
+  setTimeout(function() {
+    backupToCloudSilent();
+  }, 100);
+
+  // 重新加载当前月份数据并渲染整个报表
+  if (Object.keys(ALL_MONTHS_DATA).length > 0) {
+    loadMonthFromAllData(getSelectedMonth());
+  } else {
+    renderAll();
+  }
+
+  // 重新执行搜索以更新结果
+  searchDetail();
 }
 
 // ============== 右侧悬浮导航功能 ==============
