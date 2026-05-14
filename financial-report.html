@@ -3727,7 +3727,14 @@ function renderSearchResults(results, projectKeyword, remarkKeyword) {
     const project = highlightKeyword(escapeHtml(d.project || ''), projectKeyword);
     const remark = highlightKeyword(escapeHtml(d.remark || ''), remarkKeyword);
     const summary = highlightKeyword(escapeHtml(d.summary || ''), remarkKeyword);
-    const amount = (d.type === 'expense' || d.type === 'investment') ? '-' + (d.amount || 0).toLocaleString() : '+' + (d.amount || 0).toLocaleString();
+    // 金额显示：根据类型和实际正负号决定显示方式
+    // 收入：正数+xxx，负数-xxx
+    // 支出/投入：正数-xxx，负数+xxx（表示退款/收回）
+    let displayAmount = Math.abs(d.amount || 0);
+    const prefix = d.type === 'expense' || d.type === 'investment'
+      ? (d.amount >= 0 ? '-' : '+')  // 支出/投入：正数加-，负数加+
+      : (d.amount >= 0 ? '+' : '-'); // 收入：正数加+，负数加-
+    const amount = prefix + displayAmount.toLocaleString();
 
     return '<tr>' +
       '<td>' + (d.date || '-') + '</td>' +
