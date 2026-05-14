@@ -1640,9 +1640,8 @@ function extractIncomeData(sheetData, workbook, filterByMonth) {
       else if (typeVal.includes('收入') || typeVal.includes('入账')) recordType = 'income';
     }
     let amount = 0;
-    if (amountCol >= 0 && row[amountCol] !== undefined) amount = parseFloat(row[amountCol]) || 0;
-    if (recordType === 'expense' && amount < 0) amount = Math.abs(amount);
-    if (recordType === 'investment' && amount < 0) amount = Math.abs(amount);
+    if (amountCol >= 0 && row[amountCol] !== undefined) amount = parseAmount(row[amountCol], recordType);
+    // 不再强制取绝对值，根据类型和原始符号决定正负
     if (amount === 0) continue;
     let date = '';
     if (dateCol >= 0 && row[dateCol]) {
@@ -1741,9 +1740,8 @@ function mergeAllMonthsData(sheetData, workbook) {
       else if (typeVal.includes('收入') || typeVal.includes('入账')) recordType = 'income';
     }
     let amount = 0;
-    if (amountCol >= 0 && row[amountCol] !== undefined) amount = parseFloat(row[amountCol]) || 0;
-    if (recordType === 'expense' && amount < 0) amount = Math.abs(amount);
-    if (recordType === 'investment' && amount < 0) amount = Math.abs(amount);
+    if (amountCol >= 0 && row[amountCol] !== undefined) amount = parseAmount(row[amountCol], recordType);
+    // 不再强制取绝对值，根据类型和原始符号决定正负
     if (amount === 0 || recordType === 'exclude') continue;
     // 解析日期获取月份key
     let date = '';
@@ -3814,6 +3812,115 @@ window.addEventListener('scroll', function() {
     floatingNavScrollTimer = null;
   }, 100);
 }, { passive: true });
+
+// ============== 增强金额解析函数 ==============
+// 支持：数字、逗号分隔、货币符号(¥$€)、万/亿单位、中文大写数字、负数
+function parseAmount(value, recordType) {
+  // 如果是数字，直接返回（保留正负号）
+  if (typeof value === 'number') {
+    // 数值类型直接返回，区分正负
+    return value;
+  }
+  
+  // 空值或非字符串返回0
+  if (!value || typeof value !== 'string') return 0;
+  
+  let str = String(value).trim();
+  if (!str) return 0;
+  
+  // 记录原始符号（用于中文"负"字前缀）
+  const isNegative = str.startsWith('负') || str.startsWith('-');
+  str = str.replace(/^[负\-]/, ''); // 去掉"负"字和减号
+  
+  // 去除常见货币符号和单位文字
+  str = str.replace(/[¥$€£￥元]/g, '');
+  
+  // 处理万/亿单位（先提取，处理完再乘以对应值）
+  let multiplier = 1;
+  if (str.includes('亿')) {
+    multiplier = 100000000;
+    str = str.replace(/亿/g, '');
+  } else if (str.includes('万')) {
+    multiplier = 10000;
+    str = str.replace(/万/g, '');
+  }
+  
+  // 处理中文大写数字（一~九十九九十九）
+  if (/[一二三四五六七八九十]/.test(str)) {
+    const chineseNumMap = {
+      '零': 0, '一': 1, '二': 2, '三': 3, '四': 4,
+      '五': 5, '六': 6, '七': 7, '八': 8, '九': 9,
+      '十': 10, '百': 100, '千': 1000
+    };
+    
+    let numStr = str;
+    let result = 0;
+    let temp = 0;
+    let hasTen = false;
+    
+    // 解析中文数字
+    for (let i = 0; i < numStr.length; i++) {
+      const char = numStr[i];
+      const val = chineseNumMap[char];
+      
+      if (val === undefined) continue;
+      
+      if (val >= 1000) {
+        // 千、百位
+        result += temp * val;
+        temp = 0;
+      } else if (val >= 10) {
+        // 十位
+        if (val === 10) {
+          hasTen = true;
+          temp = temp || 1; // "十" 相当于 10
+        } else {
+          result += temp * val;
+          temp = 0;
+        }
+      } else {
+        // 个位
+        temp += val;
+      }
+    }
+    result += temp;
+    
+    // 处理 "十" 在开头的情况（如"十二万"中的"十"）
+    if (hasTen && numStr[0] === '十') {
+      result = result || 10;
+    }
+    
+    // 处理 "万/亿" 后缀在中文数字后面的情况（如"一万"）
+    // 已经在前面处理了亿/万单位
+    if (result > 0) {
+      str = String(result);
+    } else {
+      return 0;
+    }
+  }
+  
+  // 去除千分位逗号
+  str = str.replace(/,/g, '');
+  
+  // 解析数字
+  let num = parseFloat(str);
+  
+  // 如果解析失败，返回0
+  if (isNaN(num) || str === '') return 0;
+  
+  // 应用万/亿倍数
+  num = num * multiplier;
+  
+  // 四舍五入到2位小数（避免浮点数精度问题）
+  num = Math.round(num * 100) / 100;
+  
+  // 根据类型和原始符号决定正负
+  if (isNegative) {
+    num = -Math.abs(num);
+  }
+  
+  return num;
+}
 
 </script>
 </body>
