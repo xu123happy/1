@@ -3245,7 +3245,11 @@ async function backupToCloud() {
       allMonthsData: ALL_MONTHS_DATA,
       allDetailData: ALL_DETAIL_DATA,
       contractSettings: loadContractSettings(),
-      paybackSettings: loadPaybackSettings()
+      paybackSettings: loadPaybackSettings(),
+      // 配置同步到云端
+      globalFilter: loadGlobalFilter() ? Array.from(loadGlobalFilter()) : null,
+      colFilter: loadColFilter(),
+      rowFilter: loadRowFilter()
     };
 
     // 使用 LZ-String 压缩以突破 100KB 限制
@@ -3402,10 +3406,23 @@ async function restoreFromCloud() {
     if (backupData.paybackSettings && Object.keys(backupData.paybackSettings).length > 0) {
       savePaybackSettingsToStorage(backupData.paybackSettings);
     }
+    // 恢复导航栏筛选配置
+    if (backupData.globalFilter !== null && backupData.globalFilter !== undefined) {
+      saveGlobalFilter(backupData.globalFilter.length > 0 ? new Set(backupData.globalFilter) : null);
+    }
+    // 恢复列筛选配置
+    if (backupData.colFilter && Object.keys(backupData.colFilter).length > 0) {
+      saveColFilter(backupData.colFilter);
+    }
+    // 恢复行筛选配置
+    if (backupData.rowFilter && Object.keys(backupData.rowFilter).length > 0) {
+      saveRowFilter(backupData.rowFilter);
+    }
     isDataUpdated = true;
     document.getElementById('dataSourceBadge').className = 'data-source uploaded';
     document.getElementById('dataSourceBadge').innerHTML = '☁️ 已从云端恢复';
     renderAll();
+    updateGlobalFilterBadge();
     initSearchMonthOptions();
 
     // 同步到 localStorage
@@ -3508,10 +3525,23 @@ async function autoRestoreFromCloud() {
       if (backupData.paybackSettings && Object.keys(backupData.paybackSettings).length > 0) {
         savePaybackSettingsToStorage(backupData.paybackSettings);
       }
+      // 恢复导航栏筛选配置
+      if (backupData.globalFilter !== null && backupData.globalFilter !== undefined) {
+        saveGlobalFilter(backupData.globalFilter.length > 0 ? new Set(backupData.globalFilter) : null);
+      }
+      // 恢复列筛选配置
+      if (backupData.colFilter && Object.keys(backupData.colFilter).length > 0) {
+        saveColFilter(backupData.colFilter);
+      }
+      // 恢复行筛选配置
+      if (backupData.rowFilter && Object.keys(backupData.rowFilter).length > 0) {
+        saveRowFilter(backupData.rowFilter);
+      }
       isDataUpdated = true;
       document.getElementById('dataSourceBadge').className = 'data-source uploaded';
       document.getElementById('dataSourceBadge').innerHTML = '☁️ 已自动恢复';
       renderAll();
+      updateGlobalFilterBadge();
       initSearchMonthOptions();
       setCloudStatus('✅ 已自动从云端恢复数据 (' + new Date(backupData.timestamp).toLocaleString('zh-CN') + ')');
     } else {
